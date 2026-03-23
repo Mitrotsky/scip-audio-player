@@ -1,3 +1,6 @@
+type CallbackFunction = (...args: any[]) => void;
+
+
 function onDecodeSuccess(buffer: AudioBuffer) {
     console.debug(`Successfully decoded file of length ${numberToTime(buffer.duration)} (${buffer.duration}s.)`);
 }
@@ -16,12 +19,19 @@ function clamp(smallest: number, target: number, biggest: number) {
 }
 
 class AudioPlayer {
-    private _url: string;
-    private _context: AudioContext;
+    private readonly _url: string;
+    private readonly _context: AudioContext;
+    private readonly _gainNode: GainNode;
     private _gainValue: number;
-    private _gainNode: GainNode;
     private _source: AudioBufferSourceNode | null;
-    private _audioBuffer: null; // todo fix type
+    private _audioBuffer: AudioBuffer | null;
+    private muted: boolean;
+    private looped: boolean;
+    private _playTime: number;
+    private playbackPosition: number;
+    private isActive: boolean;
+    private _updateCallback: CallbackFunction | null;
+    private _onEndCallback: CallbackFunction | null;
 
     constructor(url: string) {
         this._url = url;
@@ -30,7 +40,6 @@ class AudioPlayer {
         this._gainNode = new GainNode(this._context, {
             gain: this._gainValue
         });
-        /** @type {AudioBufferSourceNode} */
         this._source = null;
         this._audioBuffer = null;
 
@@ -48,10 +57,10 @@ class AudioPlayer {
         this._setCurrentPlaybackPosition();
     }
 
-    async load() {
+    async load(): Promise<boolean> {
         const response = await fetch(this._url);
         const mimeType = response.headers.get("Content-Type");
-        if (!mimeType.startsWith("audio")) {
+        if (mimeType && !mimeType.startsWith("audio")) {
             console.error(`Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
             return false;
         }
@@ -60,7 +69,7 @@ class AudioPlayer {
         return true;
     }
 
-    play(offset = this.playbackPosition) {
+    play(offset = this.playbackPosition): void {
         if (!this._audioBuffer) {
             console.error("Audio is not loaded!");
             return;
@@ -79,7 +88,7 @@ class AudioPlayer {
         this.isActive = true;
     }
 
-    pause() {
+    pause(): void {
         if (this._source) {
             this._source.stop();
             this._source = null;  // Я ненавижу то что AudioBufferSourceNode одноразовый...
@@ -90,13 +99,13 @@ class AudioPlayer {
     /**
      * @desc Ceases the playback and resets the counter
      */
-    stop() {
+    stop(): void {
         this.pause();
         this._playTime = 0;
         this.playbackPosition = 0;
     }
 
-    _setCurrentPlaybackPosition() {
+    _setCurrentPlaybackPosition(): void {
         if (this._source) {
             this.playbackPosition = this._context.currentTime - this._playTime;
             if (this.playbackPosition > this.duration) this._onNaturalTrackEnd(this._onEndCallback);
@@ -105,14 +114,14 @@ class AudioPlayer {
         requestAnimationFrame(this._setCurrentPlaybackPosition.bind(this));
     }
 
-    _onNaturalTrackEnd(callback) {
+    _onNaturalTrackEnd(callback: CallbackFunction | null): void {
         console.debug("Track has ended naturally. Loop value: ", this.looped);
         this.stop();
         if (callback && !this.looped) callback();
         if (this.looped) this.play(0);
     }
 
-    set mute(value) {
+    set mute(value: boolean) {
         this.muted = value;
         if (this.muted) {
             this._gainNode.gain.value = 0;
@@ -121,7 +130,7 @@ class AudioPlayer {
         }
     }
 
-    set gain(value) {
+    set gain(value: number) {
         this._gainValue = clamp(0, value, 1);
         this._gainNode.gain.value = this._gainValue;
     }
@@ -138,10 +147,10 @@ class AudioPlayer {
         }
     }
 
-    updateCallback(callback) {
+    updateCallback(callback: CallbackFunction) {
         this._updateCallback = callback;
     }
-    endCallback(callback) {
+    endCallback(callback: CallbackFunction) {
         this._onEndCallback = callback;
     }
 }
@@ -159,7 +168,7 @@ const DynamicButtonStates = {
 
 
 class DynamicButton {
-    constructor(HTMLButton) {
+    constructor(HTMLButton: HTMLButtonElement) {
         /** @type {Map<string, function(MouseEvent): any>} */
         this._states = new Map();
         this._states.set(DynamicButtonStates.default, () => { /* no op */ });
