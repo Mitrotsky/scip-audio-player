@@ -1,20 +1,20 @@
 type CallbackFunction = (...args: any[]) => void;
 
 
-function onDecodeSuccess(buffer: AudioBuffer) {
+function onDecodeSuccess(buffer: AudioBuffer): void {
     console.debug(`Successfully decoded file of length ${numberToTime(buffer.duration)} (${buffer.duration}s.)`);
 }
 
-function onDecodeFailure(exception: DOMException) {
+function onDecodeFailure(exception: DOMException): void {
     console.error(exception);
 }
 
-function numberToTime(time: number) {
+function numberToTime(time: number): string {
     time = time ? Math.round(time) : 0;
     return `${Math.floor(time / 60)}:${(time % 60).toString().padStart(2, "0")}`;
 }
 
-function clamp(smallest: number, target: number, biggest: number) {
+function clamp(smallest: number, target: number, biggest: number): number {
     return Math.max(smallest, Math.min(biggest, target));
 }
 
@@ -25,7 +25,7 @@ class AudioPlayer {
     private _gainValue: number;
     private _source: AudioBufferSourceNode | null;
     private _audioBuffer: AudioBuffer | null;
-    private muted: boolean;
+    private _muted: boolean;
     private looped: boolean;
     private _playTime: number;
     private playbackPosition: number;
@@ -33,7 +33,7 @@ class AudioPlayer {
     private _updateCallback: CallbackFunction | null;
     private _onEndCallback: CallbackFunction | null;
 
-    constructor(url: string) {
+    public constructor(url: string) {
         this._url = url;
         this._context = new AudioContext();
         this._gainValue = 1;
@@ -45,7 +45,7 @@ class AudioPlayer {
 
         this._gainNode.connect(this._context.destination);
 
-        this.muted = false;
+        this._muted = false;
         this.looped = false;
         this._playTime = 0;
         this.playbackPosition = 0;
@@ -57,7 +57,7 @@ class AudioPlayer {
         this._setCurrentPlaybackPosition();
     }
 
-    async load(): Promise<boolean> {
+    public async load(): Promise<boolean> {
         const response = await fetch(this._url);
         const mimeType = response.headers.get("Content-Type");
         if (mimeType && !mimeType.startsWith("audio")) {
@@ -69,7 +69,7 @@ class AudioPlayer {
         return true;
     }
 
-    play(offset: number = this.playbackPosition): void {
+    public play(offset: number = this.playbackPosition): void {
         if (!this._audioBuffer) {
             console.error("[Mit/AudioPlayer] Audio is not loaded!");
             return;
@@ -88,7 +88,7 @@ class AudioPlayer {
         this.isActive = true;
     }
 
-    pause(): void {
+    public pause(): void {
         if (this._source) {
             this._source.stop();
             this._source = null;  // Я ненавижу то что AudioBufferSourceNode одноразовый...
@@ -99,13 +99,13 @@ class AudioPlayer {
     /**
      * @desc Ceases the playback and resets the counter
      */
-    stop(): void {
+    public stop(): void {
         this.pause();
         this._playTime = 0;
         this.playbackPosition = 0;
     }
 
-    _setCurrentPlaybackPosition(): void {
+    private _setCurrentPlaybackPosition(): void {
         if (this._source) {
             this.playbackPosition = this._context.currentTime - this._playTime;
             if (this.playbackPosition > this.duration) this._onNaturalTrackEnd(this._onEndCallback);
@@ -114,20 +114,24 @@ class AudioPlayer {
         requestAnimationFrame(this._setCurrentPlaybackPosition.bind(this));
     }
 
-    _onNaturalTrackEnd(callback: CallbackFunction | null): void {
+    private _onNaturalTrackEnd(callback: CallbackFunction | null): void {
         console.debug("[Mit/AudioPlayer] Track has ended naturally. Loop value: ", this.looped);
         this.stop();
         if (callback && !this.looped) callback();
         if (this.looped) this.play(0);
     }
 
-    set mute(value: boolean) {
-        this.muted = value;
-        if (this.muted) {
+    set muted(value: boolean) {
+        this._muted = value;
+        if (this._muted) {
             this._gainNode.gain.value = 0;
         } else {
             this._gainNode.gain.value = this._gainValue;
         }
+    }
+
+    get muted(): boolean {
+        return this._muted;
     }
 
     set gain(value: number) {
@@ -334,13 +338,13 @@ function onStartLoopPress() {
 function onUnmutePress() {
     this.setState(DynamicButtonStates.unmuted);
     this._button.innerHTML = SVGIcon_mute;
-    player.mute = false;
+    player.muted = false;
 }
 /** @this DynamicButton */
 function onMutePress() {
     this.setState(DynamicButtonStates.muted);
     this._button.innerHTML = SVGIcon_unmute;
-    player.mute = true;
+    player.muted = true;
 }
 
 function onButtonClick_Stop() {
