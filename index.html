@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>scip-audio-player</title>
+    <style>
+      @layer baseline, user-defined;
+      @import url("https://fonts.googleapis.com/css?family=Lato:400,900");
+      @import url("{$user-defined-stylesheet}") layer(user-defined);
+
+      @layer baseline {
+        :root {
+          --player-bg-color: rgb(252, 252, 252);
+          --player-border-color: rgb(215, 215, 215);
+          --player-box-shadow-color: rgba(12, 12, 12, 0.15);
+          --player-text-color: rgb(80, 0, 2);
+          --player-icon-color: rgb(171, 0, 5);
+          --player-seeker-color: var(--player-border-color);
+          --player-progress-color: var(--player-text-color);
+          --player-volume-slider-color: var(--player-border-color);
+
+          --player-border-radius: 0.313rem;
+
+          --player-border: 0.0625rem solid var(--player-border-color);
+          --player-box-shadow: 0 0.313rem 0.5rem var(--player-box-shadow-color);
+        }
+
+        :where(button) {
+          appearance: none;
+          border: none;
+          background: none;
+          color: var(--player-text-color);
+          margin: unset;
+          padding: unset;
+          cursor: pointer;
+        }
+
+        body {
+          font-family: 'Lato', sans-serif;
+        }
+
+        #audio-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: auto;
+          font-size: 3vw;
+        }
+
+        #audio-player {
+          background-color: var(--player-bg-color);
+          border: var(--player-border);
+          border-radius: var(--player-border-radius);
+          box-shadow: var(--player-box-shadow);
+          color: var(--player-text-color);
+          display: flex;
+          line-height: 1.5625;
+          height: auto;
+        }
+
+        #audio-player > div {
+          border-right: var(--player-border);
+          position: relative;
+        }
+
+        #audio-player > div:last-child {
+          border-right: none;
+        }
+
+        #audio-player > div :is(button, #volume) {
+          color: var(--player-icon-color);
+          display: block;
+          line-height: 0;
+          width: 10vw;
+          aspect-ratio: 1 / 1;
+          text-decoration: none;
+          min-height: 2vw;
+        }
+
+        #seeker {
+          background-color: var(--player-seeker-color);
+          cursor: pointer;
+          height: 50%;
+          min-width: 30vw;
+          position: relative;
+        }
+
+        #seeker-slider {
+          height: 100%;
+          width: 0;
+          background-color: var(--player-progress-color);
+          user-select: none;
+          pointer-events: none;
+        }
+
+        #playback {
+          display: flex;
+          justify-content: space-between;
+        }
+
+        #playback #playback-position {
+          font-weight: 700;
+          padding-left: 1vw;
+        }
+
+        #playback #playback-duration {
+          opacity: 0.5;
+          padding-right: 1vw;
+        }
+
+        /* Somewhere here I became tired, so code here will be messy */
+
+        #audio-container #audio-player #volume {
+          display: flex;
+          flex-wrap: nowrap;
+          padding: 0.5vw;
+          align-items: center;
+          justify-items: center;
+          box-sizing: border-box;
+        }
+
+        div:has(> #volume) {
+          width: 10vw;
+        }
+
+        #volume svg {
+          flex-basis: 50%;
+          padding-left: 0.5vw;
+          max-width: 50%;
+        }
+
+        #volume #slider-container {
+          display: flex;
+          justify-content: center;
+          position: relative;
+          height: 60%;
+          width: 2vw;
+          margin-left: 1vw;
+          background-color: var(--player-volume-slider-color);
+          border-radius: 1rem;
+          cursor: pointer;
+        }
+
+        #volume-thumb {
+          position: absolute;
+          width: 125%;
+          aspect-ratio: 1 / 1;
+          background-color: var(--player-icon-color);
+          transform: translateY(-50%);
+          top: 0;
+          border-radius: 100%;
+          border: var(--player-border);
+          user-select: none;
+          pointer-events: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+
+    <div id="audio-container">
+      <div id="audio-player">
+        <div title="Остановить">
+          <button id="stop"></button>
+        </div>
+        <div title="Приостановить/Возобновить">
+          <button id="play-pause"></button>
+        </div>
+        <div>
+          <div id="seeker" title="Прогресс трека">
+            <div id="seeker-slider"></div>
+          </div>
+          <div id="playback">
+            <span id="playback-position" title="Времени прошло:">0:00</span>
+            <span id="playback-duration" title="Длительность трека:">0:00</span>
+          </div>
+        </div>
+        <div title="Скачать">
+          <button id="download"></button>
+        </div>
+        <div title="Вкл./Выкл. повтор">
+          <button id="loop"></button>
+        </div>
+        <div title="Заглушить/Включить">
+          <button id="mute"></button>
+        </div>
+        <div title="Громкость">
+          <div id="volume">
+            <div id="slider-container">
+              <div id="volume-thumb"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+
+
+  </body>
+</html>
