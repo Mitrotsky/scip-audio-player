@@ -61,7 +61,7 @@ class AudioPlayer {
         const response = await fetch(this._url);
         const mimeType = response.headers.get("Content-Type");
         if (mimeType && !mimeType.startsWith("audio")) {
-            console.error(`Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
+            console.error(`[Mit/AudioPlayer] Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
             return false;
         }
         const arrayBuffer = await response.arrayBuffer();
@@ -69,9 +69,9 @@ class AudioPlayer {
         return true;
     }
 
-    play(offset = this.playbackPosition): void {
+    play(offset: number = this.playbackPosition): void {
         if (!this._audioBuffer) {
-            console.error("Audio is not loaded!");
+            console.error("[Mit/AudioPlayer] Audio is not loaded!");
             return;
         }
         if (this._source) {
@@ -115,7 +115,7 @@ class AudioPlayer {
     }
 
     _onNaturalTrackEnd(callback: CallbackFunction | null): void {
-        console.debug("Track has ended naturally. Loop value: ", this.looped);
+        console.debug("[Mit/AudioPlayer] Track has ended naturally. Loop value: ", this.looped);
         this.stop();
         if (callback && !this.looped) callback();
         if (this.looped) this.play(0);
@@ -135,11 +135,11 @@ class AudioPlayer {
         this._gainNode.gain.value = this._gainValue;
     }
 
-    get gain() {
+    get gain(): number {
         return this._gainValue;
     }
 
-    get duration() {
+    get duration(): number {
         if (this._audioBuffer) {
             return this._audioBuffer.duration;
         } else {
@@ -147,10 +147,10 @@ class AudioPlayer {
         }
     }
 
-    updateCallback(callback: CallbackFunction) {
+    updateCallback(callback: CallbackFunction): void {
         this._updateCallback = callback;
     }
-    endCallback(callback: CallbackFunction) {
+    endCallback(callback: CallbackFunction): void {
         this._onEndCallback = callback;
     }
 }
@@ -204,22 +204,22 @@ const fallbackIcon: Record<IconNames, SVGString> = {
 
 async function loadCustomSVG(key: IconNames): Promise<SVGString> {
     if (customIcon[key] === customIconCode[key]) {  // Is not changed by user
-        console.debug(`Image of key "${key}" is not defined by user.`);
+        console.debug(`[Mit/ImageLoader] Image of key "${key}" is not defined by user.`);
         return fallbackIcon[key];
     }
     const response = await fetch(customIcon[key]);
     if (!response.ok) {
-        console.error(`Failed to load image of key "${key}" with the status code "${response.status}".`);
+        console.error(`[Mit/ImageLoader] Failed to load image of key "${key}" with the status code "${response.status}".`);
         return fallbackIcon[key];
     }
     const mimeType = response.headers.get("Content-Type");
     if (mimeType && !mimeType.startsWith("image/")) {
-        console.error(`Loaded file of key ${key} is not an image. Expected "image/...", got "${mimeType}" instead.`);
+        console.error(`[Mit/ImageLoader] Loaded file of key ${key} is not an image. Expected "image/...", got "${mimeType}" instead.`);
         return fallbackIcon[key];
     }
     if (mimeType !== "image/svg+xml") {
         // todo добавить поддержку прочих типов изображений
-        console.error("Currently only SVG images are supported. Replace your image with SVG file.");
+        console.error("[Mit/ImageLoader] Currently only SVG images are supported. Replace your image with SVG file.");
         return fallbackIcon[key];
     }
     return await response.text();
@@ -230,7 +230,7 @@ const results = await Promise.allSettled(iconNames.map(key => loadCustomSVG(key)
 const [
     SVGIcon_stop, SVGIcon_pause, SVGIcon_start, SVGIcon_download,
     SVGIcon_loop, SVGIcon_unloop, SVGIcon_mute, SVGIcon_unmute, SVGIcon_volume
-] = results.map(result => result.value);
+] = results.map((result: PromiseSettledResult<string>) => result.value);
 
 
 interface SizeObject {
