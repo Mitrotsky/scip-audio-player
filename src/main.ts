@@ -156,51 +156,15 @@ class AudioPlayer {
 }
 
 
-const DynamicButtonStates = {
-    default: "default",        // Does nothing, as it should
-    paused: "paused",          // paused -> playing
-    playing: "playing",        // playing -> paused
-    looping: "looping",        // looping -> notLooping
-    notLooping: "notLooping",  // notLooping -> looping
-    muted: "muted",            // muted -> unmuted
-    unmuted: "unmuted"         // unmuted -> muted
-}
 
 
-class DynamicButton {
-    constructor(HTMLButton: HTMLButtonElement) {
-        /** @type {Map<string, function(MouseEvent): any>} */
-        this._states = new Map();
-        this._states.set(DynamicButtonStates.default, () => { /* no op */ });
-        /** @type {HTMLElement} */
-        this._button = HTMLButton;
-        this._baseClasses = this._button.className;
 
-        this.setState(DynamicButtonStates.default);
-    }
+type SVGString = string;
+type IconNames = "stop" | "pause" | "start" | "download" | "loop" | "unloop" | "mute" | "unmute" | "volume";
 
-    /**
-     * @param {string} stateName
-     * @param {function(MouseEvent): any} callback
-     */
-    addState(stateName, callback) {
-        this._states.set(stateName, callback.bind(this));  // Bind to this or button
-    }
+const iconNames: IconNames[] = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
 
-    setState(stateName) {
-        if (this._states.has(stateName)) {
-            this._button.onclick = this._states.get(stateName);
-            this._button.className = this._baseClasses ? this._baseClasses + ` ${stateName}` : stateName;
-        } else {
-            console.error(`"${stateName}" is not a valid state`);
-            this._button.onclick = this._states.get(DynamicButtonStates.default);
-            this._button.className = this._baseClasses;
-        }
-    }
-}
-const iconNames = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
-
-const customIcon = {
+const customIcon: Record<IconNames, string> = {
     stop: "{$stop-icon}",
     pause: "{$pause-icon}",
     start: "{$start-icon}",
@@ -213,7 +177,7 @@ const customIcon = {
 }
 
 // I swear there's an easier way, but I can't see it
-const customIconCode = {
+const customIconCode: Record<IconNames, string> = {
     stop: "{#stop-icon}".replace("#", "$"),
     pause: "{#pause-icon}".replace("#", "$"),
     start: "{#start-icon}".replace("#", "$"),
@@ -225,7 +189,8 @@ const customIconCode = {
     volume: "{#volume-icon}".replace("#", "$"),
 }
 
-const fallbackIcon = {
+
+const fallbackIcon: Record<IconNames, SVGString> = {
     stop: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M16,4.995v9.808C16,15.464,15.464,16,14.804,16H4.997C4.446,16,4,15.554,4,15.003V5.196C4,4.536,4.536,4,5.196,4h9.808C15.554,4,16,4.446,16,4.995z"/></svg>`,
     pause: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,3h-2c-0.553,0-1,0.048-1,0.6v12.8c0,0.552,0.447,0.6,1,0.6h2c0.553,0,1-0.048,1-0.6V3.6C16,3.048,15.553,3,15,3z M7,3H5C4.447,3,4,3.048,4,3.6v12.8C4,16.952,4.447,17,5,17h2c0.553,0,1-0.048,1-0.6V3.6C8,3.048,7.553,3,7,3z"/></svg>`,
     start: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,10.001c0,0.299-0.305,0.514-0.305,0.514l-8.561,5.303C5.51,16.227,5,15.924,5,15.149V4.852c0-0.777,0.51-1.078,1.135-0.67l8.561,5.305C14.695,9.487,15,9.702,15,10.001z"/></svg>`,
@@ -237,7 +202,7 @@ const fallbackIcon = {
     volume: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M19,13.805C19,14.462,18.462,15,17.805,15H1.533c-0.88,0-0.982-0.371-0.229-0.822l16.323-9.055C18.382,4.67,19,5.019,19,5.9V13.805z"/></svg>`,
 }
 
-async function loadCustomSVG(key) {
+async function loadCustomSVG(key: IconNames): Promise<SVGString> {
     if (customIcon[key] === customIconCode[key]) {  // Is not changed by user
         console.debug(`Image of key "${key}" is not defined by user.`);
         return fallbackIcon[key];
@@ -248,7 +213,7 @@ async function loadCustomSVG(key) {
         return fallbackIcon[key];
     }
     const mimeType = response.headers.get("Content-Type");
-    if (!mimeType.startsWith("image/")) {
+    if (mimeType && !mimeType.startsWith("image/")) {
         console.error(`Loaded file of key ${key} is not an image. Expected "image/...", got "${mimeType}" instead.`);
         return fallbackIcon[key];
     }
@@ -267,23 +232,21 @@ const [
     SVGIcon_loop, SVGIcon_unloop, SVGIcon_mute, SVGIcon_unmute, SVGIcon_volume
 ] = results.map(result => result.value);
 
-/**
- * @typedef {Object} SizeObject
- * @property width - width of the container
- * @property height - height of the container
- */
 
-/**
- * @param {HTMLElement} HTMLElement
- * @returns {SizeObject}
- */
-function cSize(HTMLElement) {
+interface SizeObject {
+    width: number;
+    height: number;
+}
+
+function cSize(HTMLElement: HTMLElement): SizeObject {
     const rect = HTMLElement.getBoundingClientRect();
     return {
         width: rect.width,
         height: rect.height
     };
 }
+
+// Anything past this line should be rewritten, not fixed
 
 const player = new AudioPlayer("{$audio-file}");
 await player.load();
