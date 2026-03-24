@@ -243,12 +243,12 @@ const icons: Record<IconNames, SVGString> = Object.fromEntries(
 );
 
 
-interface SizeObject {
+interface Size {
     width: number;
     height: number;
 }
 
-function cSize(HTMLElement: HTMLElement): SizeObject {
+function cSize(HTMLElement: HTMLElement): Size {
     const rect = HTMLElement.getBoundingClientRect();
     return {
         width: rect.width,

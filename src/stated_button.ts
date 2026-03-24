@@ -1,42 +1,37 @@
-export const DynamicButtonStates = {
-    default: "default",        // Does nothing, as it should
-    paused: "paused",          // paused -> playing
-    playing: "playing",        // playing -> paused
-    looping: "looping",        // looping -> notLooping
-    notLooping: "notLooping",  // notLooping -> looping
-    muted: "muted",            // muted -> unmuted
-    unmuted: "unmuted"         // unmuted -> muted
-}
+type WithDefault<States> = States | "default";
+export type ButtonCallback = (ev: PointerEvent) => void;
 
 
-export class DynamicButton {
-    private _states: Map<string, (event: MouseEvent) => void>;
-    private _button: HTMLButtonElement;
-    private _baseClasses: string;
+export class StatedButton<States extends string> {
+    private buttonElement: HTMLButtonElement;
+    private states: Map<WithDefault<States>, ButtonCallback>;
+    private _state: WithDefault<States> = "default";
 
-    constructor(HTMLButton: HTMLButtonElement) {
-        /** @type {Map<string, function(MouseEvent): any>} */
-        this._states = new Map();
-        this._states.set(DynamicButtonStates.default, () => { /* no op */ });
-        /** @type {HTMLElement} */
-        this._button = HTMLButton;
-        this._baseClasses = this._button.className;
-
-        this.setState(DynamicButtonStates.default);
+    constructor(button: HTMLButtonElement) {
+        this.buttonElement = button;
+        this.states = new Map();
+        this.addState("default", () => console.error("[Mit/StatedButton] Default state should never be called."));
+        this.state = "default";
     }
 
-    addState(stateName: string, callback: (arg0: MouseEvent) => any) {
-        this._states.set(stateName, callback.bind(this));  // Bind to this or button
+    public addState(state: WithDefault<States>, callback: ButtonCallback): void {
+        if (this.states.has(state)) console.debug(`[Mit/StatedButton] Provided state "${state}" already exists. Updating callback.`);
+        this.states.set(state, callback.bind(this));
     }
 
-    setState(stateName: string) {
-        if (this._states.has(stateName)) {
-            this._button.onclick = this._states.get(stateName);
-            this._button.className = this._baseClasses ? this._baseClasses + ` ${stateName}` : stateName;
-        } else {
-            console.error(`"${stateName}" is not a valid state`);
-            this._button.onclick = this._states.get(DynamicButtonStates.default);
-            this._button.className = this._baseClasses;
+    public set state(state: WithDefault<States>) {
+        const callback = this.states.get(state);
+        if (callback) {
+            this.buttonElement.onclick = callback;
+            this.buttonElement.classList.remove(this._state);
+            this.buttonElement.classList.add(state);
+            this._state = state;
+            return;
         }
+        throw new Error(`[Mit/StatedButton] Provided state "${state}" doesn't exist.`);
+    }
+
+    public get state(): WithDefault<States> {
+        return this._state;
     }
 }
