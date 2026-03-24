@@ -1,3 +1,6 @@
+import { StatedButton } from "./stated_button.ts";
+
+
 type CallbackFunction = (...args: any[]) => void;
 
 
@@ -164,14 +167,14 @@ class AudioPlayer {
 
 
 type SVGString = string;
-type IconNames = "stop" | "pause" | "start" | "download" | "loop" | "unloop" | "mute" | "unmute" | "volume";
+type IconName = "stop" | "pause" | "start" | "download" | "loop" | "unloop" | "mute" | "unmute" | "volume";
 
-const iconNames: IconNames[] = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
+const iconNames: IconName[] = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
 
 /**
  * @desc Stores icon image URLs for the AudioPlayer. The parser automatically replaces these values with the user-provided URLs, if any.
  */
-const customIcon: Record<IconNames, string> = {
+const customIcon: Record<IconName, string> = {
     stop: "{$stop-icon}",
     pause: "{$pause-icon}",
     start: "{$start-icon}",
@@ -186,7 +189,7 @@ const customIcon: Record<IconNames, string> = {
 /**
  * @desc Raw URL template used as a baseline to determine whether {@link customIcon} has been overridden by the user.
  */
-const customIconCode: Record<IconNames, string> = {
+const customIconCode: Record<IconName, string> = {
     stop: "{#stop-icon}".replace("#", "$"),
     pause: "{#pause-icon}".replace("#", "$"),
     start: "{#start-icon}".replace("#", "$"),
@@ -201,7 +204,7 @@ const customIconCode: Record<IconNames, string> = {
 /**
  * @desc Default icons, used as a fallback if no custom URL is provided.
  */
-const fallbackIcon: Record<IconNames, SVGString> = {
+const fallbackIcon: Record<IconName, SVGString> = {
     stop: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M16,4.995v9.808C16,15.464,15.464,16,14.804,16H4.997C4.446,16,4,15.554,4,15.003V5.196C4,4.536,4.536,4,5.196,4h9.808C15.554,4,16,4.446,16,4.995z"/></svg>`,
     pause: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,3h-2c-0.553,0-1,0.048-1,0.6v12.8c0,0.552,0.447,0.6,1,0.6h2c0.553,0,1-0.048,1-0.6V3.6C16,3.048,15.553,3,15,3z M7,3H5C4.447,3,4,3.048,4,3.6v12.8C4,16.952,4.447,17,5,17h2c0.553,0,1-0.048,1-0.6V3.6C8,3.048,7.553,3,7,3z"/></svg>`,
     start: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,10.001c0,0.299-0.305,0.514-0.305,0.514l-8.561,5.303C5.51,16.227,5,15.924,5,15.149V4.852c0-0.777,0.51-1.078,1.135-0.67l8.561,5.305C14.695,9.487,15,9.702,15,10.001z"/></svg>`,
@@ -213,7 +216,7 @@ const fallbackIcon: Record<IconNames, SVGString> = {
     volume: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M19,13.805C19,14.462,18.462,15,17.805,15H1.533c-0.88,0-0.982-0.371-0.229-0.822l16.323-9.055C18.382,4.67,19,5.019,19,5.9V13.805z"/></svg>`,
 }
 
-async function loadCustomSVG(key: IconNames): Promise<SVGString> {
+async function loadCustomSVG(key: IconName): Promise<SVGString> {
     if (customIcon[key] === customIconCode[key]) {  // Is not changed by user
         console.debug(`[Mit/ImageLoader] Image of key "${key}" is not defined by user.`);
         return fallbackIcon[key];
@@ -238,7 +241,7 @@ async function loadCustomSVG(key: IconNames): Promise<SVGString> {
 
 // Both .map and .allSettled preserve original order, therefore...
 const results = await Promise.allSettled(iconNames.map(key => loadCustomSVG(key)));
-const icons: Record<IconNames, SVGString> = Object.fromEntries(
+const icons: Record<IconName, SVGString> = Object.fromEntries(
     iconNames.map((key, index) => [key, results[index].status === "fulfilled" ? results[index].value : fallbackIcon[key]])  // Should always resolve, but TS is mad as hell
 );
 
@@ -257,6 +260,11 @@ function cSize(HTMLElement: HTMLElement): Size {
 }
 
 // Anything past this line should be rewritten, not fixed
+
+
+class AudioPlayerSkeleton {
+    private player: AudioPlayer;
+}
 
 const player = new AudioPlayer("{$audio-file}");
 await player.load();
