@@ -168,6 +168,9 @@ type IconNames = "stop" | "pause" | "start" | "download" | "loop" | "unloop" | "
 
 const iconNames: IconNames[] = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
 
+/**
+ * @desc Stores icon image URLs for the AudioPlayer. The parser automatically replaces these values with the user-provided URLs, if any.
+ */
 const customIcon: Record<IconNames, string> = {
     stop: "{$stop-icon}",
     pause: "{$pause-icon}",
@@ -180,7 +183,9 @@ const customIcon: Record<IconNames, string> = {
     volume: "{$volume-icon}",
 }
 
-// I swear there's an easier way, but I can't see it
+/**
+ * @desc Raw URL template used as a baseline to determine whether {@link customIcon} has been overridden by the user.
+ */
 const customIconCode: Record<IconNames, string> = {
     stop: "{#stop-icon}".replace("#", "$"),
     pause: "{#pause-icon}".replace("#", "$"),
@@ -193,7 +198,9 @@ const customIconCode: Record<IconNames, string> = {
     volume: "{#volume-icon}".replace("#", "$"),
 }
 
-
+/**
+ * @desc Default icons, used as a fallback if no custom URL is provided.
+ */
 const fallbackIcon: Record<IconNames, SVGString> = {
     stop: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M16,4.995v9.808C16,15.464,15.464,16,14.804,16H4.997C4.446,16,4,15.554,4,15.003V5.196C4,4.536,4.536,4,5.196,4h9.808C15.554,4,16,4.446,16,4.995z"/></svg>`,
     pause: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,3h-2c-0.553,0-1,0.048-1,0.6v12.8c0,0.552,0.447,0.6,1,0.6h2c0.553,0,1-0.048,1-0.6V3.6C16,3.048,15.553,3,15,3z M7,3H5C4.447,3,4,3.048,4,3.6v12.8C4,16.952,4.447,17,5,17h2c0.553,0,1-0.048,1-0.6V3.6C8,3.048,7.553,3,7,3z"/></svg>`,
@@ -218,7 +225,7 @@ async function loadCustomSVG(key: IconNames): Promise<SVGString> {
     }
     const mimeType = response.headers.get("Content-Type");
     if (mimeType && !mimeType.startsWith("image/")) {
-        console.error(`[Mit/ImageLoader] Loaded file of key ${key} is not an image. Expected "image/...", got "${mimeType}" instead.`);
+        console.error(`[Mit/ImageLoader] Loaded file of key "${key}" is not an image. Expected "image/...", got "${mimeType}" instead.`);
         return fallbackIcon[key];
     }
     if (mimeType !== "image/svg+xml") {
@@ -226,7 +233,7 @@ async function loadCustomSVG(key: IconNames): Promise<SVGString> {
         console.error("[Mit/ImageLoader] Currently only SVG images are supported. Replace your image with SVG file.");
         return fallbackIcon[key];
     }
-    return await response.text();
+    return response.text();
 }
 
 const results = await Promise.allSettled(iconNames.map(key => loadCustomSVG(key)));
