@@ -236,12 +236,11 @@ async function loadCustomSVG(key: IconNames): Promise<SVGString> {
     return response.text();
 }
 
+// Both .map and .allSettled preserve original order, therefore...
 const results = await Promise.allSettled(iconNames.map(key => loadCustomSVG(key)));
-
-const [
-    SVGIcon_stop, SVGIcon_pause, SVGIcon_start, SVGIcon_download,
-    SVGIcon_loop, SVGIcon_unloop, SVGIcon_mute, SVGIcon_unmute, SVGIcon_volume
-] = results.map((result: PromiseSettledResult<string>) => result.value);
+const icons: Record<IconNames, SVGString> = Object.fromEntries(
+    iconNames.map((key, index) => [key, results[index].status === "fulfilled" ? results[index].value : fallbackIcon[key]])  // Should always resolve, but TS is mad as hell
+);
 
 
 interface SizeObject {
