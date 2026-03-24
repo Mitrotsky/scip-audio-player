@@ -4,14 +4,6 @@ import { StatedButton } from "./stated_button.ts";
 type CallbackFunction = (...args: any[]) => void;
 
 
-function onDecodeSuccess(buffer: AudioBuffer): void {
-    console.debug(`Successfully decoded file of length ${numberToTime(buffer.duration)} (${buffer.duration}s.)`);
-}
-
-function onDecodeFailure(exception: DOMException): void {
-    console.error(exception);
-}
-
 function numberToTime(time: number): string {
     time = time ? Math.round(time) : 0;
     return `${Math.floor(time / 60)}:${(time % 60).toString().padStart(2, "0")}`;
@@ -62,13 +54,33 @@ class AudioPlayer {
 
     public async load(): Promise<boolean> {
         const response = await fetch(this._url);
+        if (!response.ok) {
+            console.error(`[Mit/AudioPlayer] Could not load URL: unexpected server response with status ${response.status}`);
+            return false;
+        }
         const mimeType = response.headers.get("Content-Type");
         if (mimeType && !mimeType.startsWith("audio")) {
             console.error(`[Mit/AudioPlayer] Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
             return false;
         }
-        const arrayBuffer = await response.arrayBuffer();
-        this._audioBuffer = await this._context.decodeAudioData(arrayBuffer, onDecodeSuccess, onDecodeFailure);
+        try {
+            const arrayBuffer = await response.arrayBuffer();
+            this._audioBuffer = await this._context.decodeAudioData(arrayBuffer);
+            console.debug(`Successfully decoded file of length ${numberToTime(this._audioBuffer.duration)} (${this._audioBuffer.duration}s.)`);
+        } catch (error) {
+            const errorStart = "[Mit/AudioPlayer] Couldn't decode provided audio:";
+            if (error instanceof TypeError) {
+                console.error(`${errorStart} failed to decode request body.`);
+            } else if (error instanceof RangeError) {
+                console.error(`${errorStart} failed to create ArrayBuffer.`);
+            } else if (error instanceof DOMException) {
+                console.error(`${errorStart} error occurred while decoding ArrayBuffer.`);
+            } else {
+                console.error(`${errorStart} unexpected error encountered.`)
+            }
+            console.error(error);
+            return false;
+        }
         return true;
     }
 
@@ -264,6 +276,10 @@ function cSize(HTMLElement: HTMLElement): Size {
 
 class AudioPlayerSkeleton {
     private player: AudioPlayer;
+
+    constructor(player: AudioPlayer) {
+        this.player = player;
+    }
 }
 
 const player = new AudioPlayer("{$audio-file}");
