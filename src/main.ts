@@ -69,14 +69,10 @@ class AudioPlayer {
             console.debug(`Successfully decoded file of length ${numberToTime(this._audioBuffer.duration)} (${this._audioBuffer.duration}s.)`);
         } catch (error) {
             const errorStart = "[Mit/AudioPlayer] Couldn't decode provided audio:";
-            if (error instanceof TypeError) {
-                console.error(`${errorStart} failed to decode request body.`);
-            } else if (error instanceof RangeError) {
-                console.error(`${errorStart} failed to create ArrayBuffer.`);
-            } else if (error instanceof DOMException) {
-                console.error(`${errorStart} error occurred while decoding ArrayBuffer.`);
+            if (error instanceof Error || error instanceof DOMException) {
+                console.error(`${errorStart} ${error.message}`);
             } else {
-                console.error(`${errorStart} unexpected error encountered.`)
+                console.error(`${errorStart} Unexpected error encountered.`);
             }
             console.error(error);
             return false;
