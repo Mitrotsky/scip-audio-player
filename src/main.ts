@@ -25,7 +25,7 @@ class AudioPlayer {
     private _playTime: number;
     private _playbackPosition: number;
     private _isActive: boolean;
-    private _updateCallback: CallbackFunction | null;
+    private _onUpdateCallback: CallbackFunction | null;
     private _onEndCallback: CallbackFunction | null;
 
     public constructor(url: string) {
@@ -46,7 +46,7 @@ class AudioPlayer {
         this._playbackPosition = 0;
 
         this._isActive = false;
-        this._updateCallback = null;
+        this._onUpdateCallback = null;
         this._onEndCallback = null;
 
         this.animatePlayer = this.animatePlayer.bind(this);
@@ -122,7 +122,7 @@ class AudioPlayer {
             this._playbackPosition = this._context.currentTime - this._playTime;
             if (this._playbackPosition > this.duration) this._onNaturalTrackEnd(this._onEndCallback);
         }
-        if (this._updateCallback) this._updateCallback();
+        if (this._onUpdateCallback) this._onUpdateCallback();
         requestAnimationFrame(this.animatePlayer);
     }
 
@@ -178,10 +178,10 @@ class AudioPlayer {
         return this._isActive;
     }
 
-    updateCallback(callback: CallbackFunction): void {
-        this._updateCallback = callback;
+    set onUpdateCallback(callback: CallbackFunction) {
+        this._onUpdateCallback = callback;
     }
-    endCallback(callback: CallbackFunction): void {
+    set onPlaybackEndCallback(callback: CallbackFunction) {
         this._onEndCallback = callback;
     }
 }
@@ -289,6 +289,8 @@ function cSize(HTMLElement: HTMLElement): Size {
 
 class AudioPlayerSkeleton {
     private player: AudioPlayer;
+    private playbackContainerIsDragged: boolean = false;
+
     public HTMLElements = {
         button: {
             stop: document.getElementById("stop") as HTMLButtonElement,
@@ -322,6 +324,12 @@ class AudioPlayerSkeleton {
     public constructor(player: AudioPlayer) {
         this.player = player;
 
+        // Callbacks setup
+        this.onUpdate = this.onUpdate.bind(this);
+        this.onStopPress = this.onStopPress.bind(this);
+        this.player.onUpdateCallback = this.onUpdate;
+        this.player.onPlaybackEndCallback = this.onStopPress;
+
         // Button setup
         this.wrappedButtons.playPause.addState("pause", this.onStartPress.bind(this));
         this.wrappedButtons.playPause.addState("start", this.onPausePress.bind(this));
@@ -341,6 +349,8 @@ class AudioPlayerSkeleton {
         this.HTMLElements.button.download.innerHTML = icons.download;
         this.HTMLElements.button.download.onclick = this.onDownloadPress.bind(this);
 
+        for (const button of Object.values(this.HTMLElements.button)) button.disabled = true;
+
         this.HTMLElements.volume.wrapper.insertAdjacentHTML("afterbegin", icons.volume);
 
         // Seeker setup
@@ -353,6 +363,8 @@ class AudioPlayerSkeleton {
         const isLoaded = await this.player.load();
         if (isLoaded) {
             this.HTMLElements.special.player.classList.replace("not-loaded", "loaded");
+            for (const button of Object.values(this.HTMLElements.button)) button.disabled = false;
+            this.HTMLElements.playback.duration.innerText = numberToTime(player.duration);
             this.enableSeeker();
             // this.enableVolume();  // todo implement
         } else {
@@ -360,15 +372,23 @@ class AudioPlayerSkeleton {
         }
     }
 
-    private enableSeeker() {
+    private onUpdate(): void {
+        const playbackPosition = numberToTime(player.playbackPosition % player.duration);
+        if (this.HTMLElements.playback.position.innerText !== playbackPosition) this.HTMLElements.playback.position.innerText = playbackPosition;
+        if (!this.playbackContainerIsDragged) this.HTMLElements.playback.slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
+    }
+
+    private enableSeeker(): void {
         this.HTMLElements.playback.seeker.addEventListener("pointerdown", this.seekerOnPointerDown);
         this.HTMLElements.playback.seeker.addEventListener("pointerup", this.seekerOnPointerUp);
         this.HTMLElements.playback.seeker.addEventListener("pointerout", this.seekerOnPointerUp);
     }
     private seekerOnPointerDown(): void {
+        this.playbackContainerIsDragged = true;
         this.HTMLElements.playback.seeker.addEventListener("pointermove", this.seekerOnPointerMove);
     }
     private seekerOnPointerUp(event: PointerEvent): void {
+        this.playbackContainerIsDragged = false;
         this.HTMLElements.playback.seeker.removeEventListener("pointermove", this.seekerOnPointerMove);
         if (event.type !== "pointerout") this.seekerOnPointerMove(event);
         if (player.isActive) {
