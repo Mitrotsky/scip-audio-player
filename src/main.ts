@@ -23,7 +23,7 @@ class AudioPlayer {
     private _muted: boolean;
     private _looped: boolean;
     private _playTime: number;
-    private playbackPosition: number;
+    private _playbackPosition: number;
     private _isActive: boolean;
     private _updateCallback: CallbackFunction | null;
     private _onEndCallback: CallbackFunction | null;
@@ -43,13 +43,14 @@ class AudioPlayer {
         this._muted = false;
         this._looped = false;
         this._playTime = 0;
-        this.playbackPosition = 0;
+        this._playbackPosition = 0;
 
         this._isActive = false;
         this._updateCallback = null;
         this._onEndCallback = null;
 
-        this._setCurrentPlaybackPosition();
+        this.animatePlayer = this.animatePlayer.bind(this);
+        this.animatePlayer();
     }
 
     public async load(): Promise<boolean> {
@@ -66,7 +67,7 @@ class AudioPlayer {
             }
             const arrayBuffer = await response.arrayBuffer();
             this._audioBuffer = await this._context.decodeAudioData(arrayBuffer);
-            console.debug(`Successfully decoded file of length ${numberToTime(this._audioBuffer.duration)} (${this._audioBuffer.duration}s.)`);
+            console.debug(`[Mit/AudioPlayer] Successfully decoded file of length ${numberToTime(this._audioBuffer.duration)} (${this._audioBuffer.duration}s.)`);
         } catch (error) {
             const errorStart = "[Mit/AudioPlayer] Couldn't decode provided audio:";
             if (error instanceof Error || error instanceof DOMException) {
@@ -80,7 +81,7 @@ class AudioPlayer {
         return true;
     }
 
-    public play(offset: number = this.playbackPosition): void {
+    public play(offset: number = this._playbackPosition): void {
         if (!this._audioBuffer) {
             console.error("[Mit/AudioPlayer] Audio is not loaded!");
             return;
@@ -113,16 +114,16 @@ class AudioPlayer {
     public stop(): void {
         this.pause();
         this._playTime = 0;
-        this.playbackPosition = 0;
+        this._playbackPosition = 0;
     }
 
-    private _setCurrentPlaybackPosition(): void {
+    private animatePlayer(): void {
         if (this._source) {
-            this.playbackPosition = this._context.currentTime - this._playTime;
-            if (this.playbackPosition > this.duration) this._onNaturalTrackEnd(this._onEndCallback);
+            this._playbackPosition = this._context.currentTime - this._playTime;
+            if (this._playbackPosition > this.duration) this._onNaturalTrackEnd(this._onEndCallback);
         }
         if (this._updateCallback) this._updateCallback();
-        requestAnimationFrame(this._setCurrentPlaybackPosition.bind(this));
+        requestAnimationFrame(this.animatePlayer);
     }
 
     private _onNaturalTrackEnd(callback: CallbackFunction | null): void {
@@ -157,6 +158,13 @@ class AudioPlayer {
     }
     set looped(value: boolean) {
         this._looped = value;
+    }
+
+    get playbackPosition() {
+        return this._playbackPosition;
+    }
+    set playbackPosition(value: number) {
+        this._playbackPosition = value;
     }
 
     get duration(): number {
@@ -297,7 +305,8 @@ class AudioPlayerSkeleton {
         },
         volume: {
             wrapper: document.getElementById("volume") as HTMLDivElement,
-            // todo move volume sliders here
+            scroll: document.getElementById("slider-container") as HTMLDivElement,
+            thumb: document.getElementById("volume-thumb") as HTMLDivElement,
         },
     };
 
@@ -307,7 +316,7 @@ class AudioPlayerSkeleton {
         mute: new StatedButton<MuteIcons>(this.HTMLElements.button.mute),
     }
 
-    constructor(player: AudioPlayer) {
+    public constructor(player: AudioPlayer) {
         this.player = player;
 
         // Button setup
@@ -330,11 +339,36 @@ class AudioPlayerSkeleton {
         this.HTMLElements.button.download.onclick = this.onDownloadPress.bind(this);
 
         this.HTMLElements.volume.wrapper.insertAdjacentHTML("afterbegin", icons.volume);
+
+        // Seeker setup
+        this.seekerOnPointerDown = this.seekerOnPointerDown.bind(this);
+        this.seekerOnPointerUp = this.seekerOnPointerUp.bind(this);
+        this.seekerOnPointerMove = this.seekerOnPointerMove.bind(this);
+    }
+
+    private enableSeeker() {
+        this.HTMLElements.playback.seeker.addEventListener("pointerdown", this.seekerOnPointerDown);
+        this.HTMLElements.playback.seeker.addEventListener("pointerup", this.seekerOnPointerUp);
+        this.HTMLElements.playback.seeker.addEventListener("pointerout", this.seekerOnPointerUp);
+    }
+    private seekerOnPointerDown(): void {
+        this.HTMLElements.playback.seeker.addEventListener("pointermove", this.seekerOnPointerMove);
+    }
+    private seekerOnPointerUp(event: PointerEvent): void {
+        this.HTMLElements.playback.seeker.removeEventListener("pointermove", this.seekerOnPointerMove);
+        if (event.type !== "pointerout") this.seekerOnPointerMove(event);
+        if (player.isActive) {
+            if (event.type !== "pointerout") player.play(event.offsetX / cSize(this.HTMLElements.playback.seeker).width * player.duration);
+        }
+    }
+    private seekerOnPointerMove(event: PointerEvent): void {
+        player.playbackPosition = event.offsetX / cSize(this.HTMLElements.playback.seeker).width * player.duration;
+        this.HTMLElements.playback.slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
     }
 
     private onStartPress(): void {
         this.wrappedButtons.playPause.state = "start";
-        this.wrappedButtons.playPause.button.innerHTML = icons.pause;  // todo test it later
+        this.wrappedButtons.playPause.button.innerHTML = icons.pause;
         this.player.play();
     }
     private onPausePress(): void {
@@ -343,12 +377,12 @@ class AudioPlayerSkeleton {
         this.player.pause();
     }
 
-    private onStartLoopPress() {
+    private onStartLoopPress(): void {
         this.wrappedButtons.loop.state = "loop";
         this.wrappedButtons.loop.button.innerHTML = icons.unloop;
         this.player.looped = true;
     }
-    private onPauseLoopPress() {
+    private onPauseLoopPress(): void {
         this.wrappedButtons.loop.state = "unloop";
         this.wrappedButtons.loop.button.innerHTML = icons.loop;
         this.player.looped = false;
@@ -379,7 +413,7 @@ const player = new AudioPlayer("https://files.scpfoundation.net/local--files/dra
 
 // await player.load();
 
-const skeleton = new AudioPlayerSkeleton(player);
+new AudioPlayerSkeleton(player);
 
 // Anything past this line should be rewritten, not fixed
 
