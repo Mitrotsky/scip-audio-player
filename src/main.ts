@@ -53,17 +53,17 @@ class AudioPlayer {
     }
 
     public async load(): Promise<boolean> {
-        const response = await fetch(this._url);
-        if (!response.ok) {
-            console.error(`[Mit/AudioPlayer] Could not load URL: unexpected server response with status ${response.status}`);
-            return false;
-        }
-        const mimeType = response.headers.get("Content-Type");
-        if (mimeType && !mimeType.startsWith("audio")) {
-            console.error(`[Mit/AudioPlayer] Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
-            return false;
-        }
         try {
+            const response = await fetch(this._url);
+            if (!response.ok) {
+                console.error(`[Mit/AudioPlayer] Could not load URL: unexpected server response with status ${response.status}`);
+                return false;
+            }
+            const mimeType = response.headers.get("Content-Type");
+            if (mimeType && !mimeType.startsWith("audio")) {
+                console.error(`[Mit/AudioPlayer] Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
+                return false;
+            }
             const arrayBuffer = await response.arrayBuffer();
             this._audioBuffer = await this._context.decodeAudioData(arrayBuffer);
             console.debug(`Successfully decoded file of length ${numberToTime(this._audioBuffer.duration)} (${this._audioBuffer.duration}s.)`);
