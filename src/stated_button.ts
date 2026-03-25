@@ -35,7 +35,7 @@ export class StatedButton<States extends string> {
      */
     public addState(state: WithDefault<States>, callback: ButtonCallback): void {
         if (this.states.has(state)) console.debug(`[Mit/StatedButton] Provided state "${state}" already exists. Updating callback.`);
-        this.states.set(state, callback.bind(this));
+        this.states.set(state, callback);
     }
 
     /**
@@ -60,5 +60,9 @@ export class StatedButton<States extends string> {
      */
     public get state(): WithDefault<States> {
         return this._state;
+    }
+
+    public get button(): HTMLButtonElement {
+        return this.buttonElement;
     }
 }

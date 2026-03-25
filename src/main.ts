@@ -14,22 +14,22 @@ function clamp(smallest: number, target: number, biggest: number): number {
 }
 
 class AudioPlayer {
-    private readonly _url: string;
+    public readonly url: string;
     private readonly _context: AudioContext;
     private readonly _gainNode: GainNode;
     private _gainValue: number;
     private _source: AudioBufferSourceNode | null;
     private _audioBuffer: AudioBuffer | null;
     private _muted: boolean;
-    private looped: boolean;
+    private _looped: boolean;
     private _playTime: number;
     private playbackPosition: number;
-    private isActive: boolean;
+    private _isActive: boolean;
     private _updateCallback: CallbackFunction | null;
     private _onEndCallback: CallbackFunction | null;
 
     public constructor(url: string) {
-        this._url = url;
+        this.url = url;
         this._context = new AudioContext();
         this._gainValue = 1;
         this._gainNode = new GainNode(this._context, {
@@ -41,11 +41,11 @@ class AudioPlayer {
         this._gainNode.connect(this._context.destination);
 
         this._muted = false;
-        this.looped = false;
+        this._looped = false;
         this._playTime = 0;
         this.playbackPosition = 0;
 
-        this.isActive = false;
+        this._isActive = false;
         this._updateCallback = null;
         this._onEndCallback = null;
 
@@ -54,7 +54,7 @@ class AudioPlayer {
 
     public async load(): Promise<boolean> {
         try {
-            const response = await fetch(this._url);
+            const response = await fetch(this.url);
             if (!response.ok) {
                 console.error(`[Mit/AudioPlayer] Could not load URL: unexpected server response with status ${response.status}`);
                 return false;
@@ -96,14 +96,14 @@ class AudioPlayer {
         this._source.connect(this._gainNode);
         this._source.start(0, offset);
 
-        this.isActive = true;
+        this._isActive = true;
     }
 
     public pause(): void {
         if (this._source) {
             this._source.stop();
             this._source = null;  // Я ненавижу то что AudioBufferSourceNode одноразовый...
-            this.isActive = false;
+            this._isActive = false;
         }
     }
 
@@ -132,6 +132,9 @@ class AudioPlayer {
         if (this.looped) this.play(0);
     }
 
+    get muted(): boolean {
+        return this._muted;
+    }
     set muted(value: boolean) {
         this._muted = value;
         if (this._muted) {
@@ -141,17 +144,19 @@ class AudioPlayer {
         }
     }
 
-    get muted(): boolean {
-        return this._muted;
+    get gain(): number {
+        return this._gainValue;
     }
-
     set gain(value: number) {
         this._gainValue = clamp(0, value, 1);
         this._gainNode.gain.value = this._gainValue;
     }
 
-    get gain(): number {
-        return this._gainValue;
+    get looped(): boolean {
+        return this._looped;
+    }
+    set looped(value: boolean) {
+        this._looped = value;
     }
 
     get duration(): number {
@@ -160,6 +165,9 @@ class AudioPlayer {
         } else {
             return 0;
         }
+    }
+    get isActive() {
+        return this._isActive;
     }
 
     updateCallback(callback: CallbackFunction): void {
@@ -175,7 +183,10 @@ class AudioPlayer {
 
 
 type XMLString = string;
-type IconName = "stop" | "pause" | "start" | "download" | "loop" | "unloop" | "mute" | "unmute" | "volume";
+type StartIcons = "pause" | "start";
+type LoopIcons = "loop" | "unloop";
+type MuteIcons = "mute" | "unmute";
+type IconName = "stop" | StartIcons | "download" | LoopIcons | MuteIcons | "volume";
 
 const iconNames: IconName[] = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
 
@@ -267,176 +278,265 @@ function cSize(HTMLElement: HTMLElement): Size {
     };
 }
 
-// Anything past this line should be rewritten, not fixed
-
 
 class AudioPlayerSkeleton {
     private player: AudioPlayer;
+    public HTMLElements = {
+        button: {
+            stop: document.getElementById("stop") as HTMLButtonElement,
+            playPause: document.getElementById("play-pause") as HTMLButtonElement,
+            download: document.getElementById("download") as HTMLButtonElement,
+            loop: document.getElementById("loop") as HTMLButtonElement,
+            mute: document.getElementById("mute") as HTMLButtonElement,
+        },
+        playback: {
+            seeker: document.getElementById("seeker") as HTMLDivElement,
+            slider: document.getElementById("seeker-slider") as HTMLDivElement,
+            position: document.getElementById("playback-position") as HTMLSpanElement,
+            duration: document.getElementById("playback-duration") as HTMLSpanElement,
+        },
+        volume: {
+            wrapper: document.getElementById("volume") as HTMLDivElement,
+            // todo move volume sliders here
+        },
+    };
+
+    public wrappedButtons = {
+        playPause: new StatedButton<StartIcons>(this.HTMLElements.button.playPause),
+        loop: new StatedButton<LoopIcons>(this.HTMLElements.button.loop),
+        mute: new StatedButton<MuteIcons>(this.HTMLElements.button.mute),
+    }
 
     constructor(player: AudioPlayer) {
         this.player = player;
+
+        // Button setup
+        this.wrappedButtons.playPause.addState("pause", this.onStartPress.bind(this));
+        this.wrappedButtons.playPause.addState("start", this.onPausePress.bind(this));
+        this.onPausePress();
+
+        this.wrappedButtons.loop.addState("unloop", this.onStartLoopPress.bind(this));
+        this.wrappedButtons.loop.addState("loop", this.onPauseLoopPress.bind(this));
+        this.onPauseLoopPress();
+
+        this.wrappedButtons.mute.addState("unmute", this.onStartMutePress.bind(this));
+        this.wrappedButtons.mute.addState("mute", this.onPauseMutePress.bind(this));
+        this.onPauseMutePress();
+
+        this.HTMLElements.button.stop.innerHTML = icons.stop;
+        this.HTMLElements.button.stop.onclick = this.onStopPress.bind(this);
+
+        this.HTMLElements.button.download.innerHTML = icons.download;
+        this.HTMLElements.button.download.onclick = this.onDownloadPress.bind(this);
+
+        this.HTMLElements.volume.wrapper.insertAdjacentHTML("afterbegin", icons.volume);
+    }
+
+    private onStartPress(): void {
+        this.wrappedButtons.playPause.state = "start";
+        this.wrappedButtons.playPause.button.innerHTML = icons.pause;  // todo test it later
+        this.player.play();
+    }
+    private onPausePress(): void {
+        this.wrappedButtons.playPause.state = "pause";
+        this.wrappedButtons.playPause.button.innerHTML = icons.start;
+        this.player.pause();
+    }
+
+    private onStartLoopPress() {
+        this.wrappedButtons.loop.state = "loop";
+        this.wrappedButtons.loop.button.innerHTML = icons.unloop;
+        this.player.looped = true;
+    }
+    private onPauseLoopPress() {
+        this.wrappedButtons.loop.state = "unloop";
+        this.wrappedButtons.loop.button.innerHTML = icons.loop;
+        this.player.looped = false;
+    }
+
+    private onStartMutePress(): void {
+        this.wrappedButtons.mute.state = "mute";
+        this.wrappedButtons.mute.button.innerHTML = icons.unmute;
+        this.player.muted = true;
+    }
+    private onPauseMutePress(): void {
+        this.wrappedButtons.mute.state = "unmute";
+        this.wrappedButtons.mute.button.innerHTML = icons.mute;
+        this.player.muted = false;
+    }
+
+    private onStopPress(): void {
+        this.player.stop();
+        this.onPausePress();
+    }
+    private onDownloadPress(): void {
+        window.open(player.url);
     }
 }
 
-const player = new AudioPlayer("{$audio-file}");
-await player.load();
+// const player = new AudioPlayer("{$audio-file}");
+const player = new AudioPlayer("https://files.scpfoundation.net/local--files/draft:mitya-audio-player/1.10%20-%20Chlorine•FM%20(Intermission).mp3");
 
-const HTMLButton_stop = document.getElementById("stop");
-const HTMLButton_playPause = document.getElementById("play-pause");
-const HTMLButton_download = document.getElementById("download");
-const HTMLButton_loop = document.getElementById("loop");
-const HTMLButton_mute = document.getElementById("mute");
+// await player.load();
 
-const DynamicButton_playPause = new DynamicButton(HTMLButton_playPause);
-const DynamicButton_loop = new DynamicButton(HTMLButton_loop);
-const DynamicButton_mute = new DynamicButton(HTMLButton_mute);
+const skeleton = new AudioPlayerSkeleton(player);
 
-const HTMLElement_seeker = document.getElementById("seeker");
-const HTMLElement_slider = document.getElementById("seeker-slider");
-const HTMLElement_playbackPosition = document.getElementById("playback-position");
-const HTMLElement_playbackDuration = document.getElementById("playback-duration");
+// Anything past this line should be rewritten, not fixed
 
-const HTMLElement_volume = document.getElementById("volume");
-HTMLElement_volume.insertAdjacentHTML("afterbegin", SVGIcon_volume);
 
-let playbackContainerIsDragged = false;
 
-HTMLElement_playbackDuration.innerText = numberToTime(player.duration);
-player.updateCallback(updatePlayerStates);
 
-function updatePlayerStates() {
-    const playbackPosition = numberToTime(player.playbackPosition % player.duration);
-    if (HTMLElement_playbackPosition.innerText !== playbackPosition) HTMLElement_playbackPosition.innerText = playbackPosition;
-    if (!playbackContainerIsDragged) HTMLElement_slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
-}
 
-HTMLElement_seeker.addEventListener("pointerdown", enablePlaybackMove);
-HTMLElement_seeker.addEventListener("pointerup", disablePlaybackMove);
-HTMLElement_seeker.addEventListener("pointerout", disablePlaybackMove);
-
-/** @param {PointerEvent} ev */
-function enablePlaybackMove(ev) {
-    playbackContainerIsDragged = true;
-    HTMLElement_seeker.addEventListener("pointermove", onPlaybackMove);
-}
-/** @param {PointerEvent} ev */
-function disablePlaybackMove(ev) {
-    playbackContainerIsDragged = false;
-    HTMLElement_seeker.removeEventListener("pointermove", onPlaybackMove);
-    if (ev.type !== "pointerout") onPlaybackMove(ev);
-    if (player.isActive) {
-        const posTargeted = ev.offsetX;
-        if (ev.type !== "pointerout") player.play(posTargeted / cSize(HTMLElement_seeker).width * player.duration);
-    }
-}
-/** @param {PointerEvent} ev */
-function onPlaybackMove(ev) {
-    const posTargeted = ev.offsetX;
-    player.playbackPosition = posTargeted / cSize(HTMLElement_seeker).width * player.duration;
-    HTMLElement_slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
-}
-
-/** @this DynamicButton */
-function onPausePress() {
-    this.setState(DynamicButtonStates.paused);
-    this._button.innerHTML = SVGIcon_start;
-    player.pause();
-}
-/** @this DynamicButton */
-function onPlayPress() {
-    this.setState(DynamicButtonStates.playing);
-    this._button.innerHTML = SVGIcon_pause;
-    player.play();
-}
-/** @this DynamicButton */
-function onStopLoopPress() {
-    this.setState(DynamicButtonStates.notLooping);
-    this._button.innerHTML = SVGIcon_loop;
-    player.looped = false;
-}
-/** @this DynamicButton */
-function onStartLoopPress() {
-    this.setState(DynamicButtonStates.looping);
-    this._button.innerHTML = SVGIcon_unloop;
-    player.looped = true;
-}
-/** @this DynamicButton */
-function onUnmutePress() {
-    this.setState(DynamicButtonStates.unmuted);
-    this._button.innerHTML = SVGIcon_mute;
-    player.muted = false;
-}
-/** @this DynamicButton */
-function onMutePress() {
-    this.setState(DynamicButtonStates.muted);
-    this._button.innerHTML = SVGIcon_unmute;
-    player.muted = true;
-}
-
-function onButtonClick_Stop() {
-    player.stop();
-    DynamicButton_playPause.setState(DynamicButtonStates.paused);
-    DynamicButton_playPause._states.get(DynamicButtonStates.playing)();
-}
-
-player.endCallback(onButtonClick_Stop);
-
-DynamicButton_playPause.addState(DynamicButtonStates.playing, onPausePress);
-DynamicButton_playPause.addState(DynamicButtonStates.paused, onPlayPress);
-DynamicButton_playPause.setState(DynamicButtonStates.paused);
-HTMLButton_playPause.innerHTML = SVGIcon_start;
-
-DynamicButton_loop.addState(DynamicButtonStates.looping, onStopLoopPress);
-DynamicButton_loop.addState(DynamicButtonStates.notLooping, onStartLoopPress);
-DynamicButton_loop.setState(DynamicButtonStates.notLooping);
-HTMLButton_loop.innerHTML = SVGIcon_loop;
-
-DynamicButton_mute.addState(DynamicButtonStates.muted, onUnmutePress);
-DynamicButton_mute.addState(DynamicButtonStates.unmuted, onMutePress);
-DynamicButton_mute.setState(DynamicButtonStates.unmuted);
-HTMLButton_mute.innerHTML = SVGIcon_mute;
-
-HTMLButton_stop.innerHTML = SVGIcon_stop;
-HTMLButton_download.innerHTML = SVGIcon_download;
-
-HTMLButton_stop.onclick = onButtonClick_Stop;
-HTMLButton_download.onclick = () => window.open(player._url);
-
-const HTMLElement_volumeScroll = document.getElementById("slider-container");
-const HTMLElement_volumeThumb = document.getElementById("volume-thumb");
-
-let isThumbMoving = false;
-
-function enableVolumeMove(ev) {
-    isThumbMoving = true;
-    document.addEventListener("pointermove", onVolumeMove);
-    document.addEventListener("pointerup", disableVolumeMove);
-    onVolumeMove(ev);
-}
-function disableVolumeMove() {
-    isThumbMoving = false;
-    document.removeEventListener("pointermove", onVolumeMove);
-    document.removeEventListener("pointerup", disableVolumeMove);
-}
-function onVolumeMove(ev) {
-    if (!isThumbMoving) return;
-
-    const height = cSize(HTMLElement_volumeScroll).height;
-    const posTop = HTMLElement_volumeScroll.getBoundingClientRect().top;
-
-    const bottomBorder = posTop + height;
-    const posTargeted = clamp(posTop, ev.pageY, bottomBorder);
-    const volume = (posTargeted - posTop) / height;
-    const gain = 1 - volume;
-    player.gain = gain;
-    if (!gain) {
-        DynamicButton_mute.setState(DynamicButtonStates.muted);
-        DynamicButton_mute._states.get(DynamicButtonStates.unmuted)();
-    } else {
-        DynamicButton_mute.setState(DynamicButtonStates.unmuted);
-        DynamicButton_mute._states.get(DynamicButtonStates.muted)();
-    }
-    HTMLElement_volumeThumb.style.top = `${volume * 100}%`;
-}
-
-HTMLElement_volumeScroll.addEventListener("pointerdown", enableVolumeMove);
+// const DynamicButton_playPause = new DynamicButton(HTMLButton_playPause);
+// // const DynamicButton_loop = new DynamicButton(HTMLButton_loop);
+// // const DynamicButton_mute = new DynamicButton(HTMLButton_mute);
+//
+// // const HTMLElement_seeker = document.getElementById("seeker");
+// // const HTMLElement_slider = document.getElementById("seeker-slider");
+// // const HTMLElement_playbackPosition = document.getElementById("playback-position");
+// // const HTMLElement_playbackDuration = document.getElementById("playback-duration");
+//
+// const HTMLElement_volume = document.getElementById("volume");
+// HTMLElement_volume.insertAdjacentHTML("afterbegin", SVGIcon_volume);
+//
+// let playbackContainerIsDragged = false;
+//
+// HTMLElement_playbackDuration.innerText = numberToTime(player.duration);
+// player.updateCallback(updatePlayerStates);
+//
+// function updatePlayerStates() {
+//     const playbackPosition = numberToTime(player.playbackPosition % player.duration);
+//     if (HTMLElement_playbackPosition.innerText !== playbackPosition) HTMLElement_playbackPosition.innerText = playbackPosition;
+//     if (!playbackContainerIsDragged) HTMLElement_slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
+// }
+//
+// HTMLElement_seeker.addEventListener("pointerdown", enablePlaybackMove);
+// HTMLElement_seeker.addEventListener("pointerup", disablePlaybackMove);
+// HTMLElement_seeker.addEventListener("pointerout", disablePlaybackMove);
+//
+// /** @param {PointerEvent} ev */
+// function enablePlaybackMove(ev) {
+//     playbackContainerIsDragged = true;
+//     HTMLElement_seeker.addEventListener("pointermove", onPlaybackMove);
+// }
+// /** @param {PointerEvent} ev */
+// function disablePlaybackMove(ev) {
+//     playbackContainerIsDragged = false;
+//     HTMLElement_seeker.removeEventListener("pointermove", onPlaybackMove);
+//     if (ev.type !== "pointerout") onPlaybackMove(ev);
+//     if (player.isActive) {
+//         const posTargeted = ev.offsetX;
+//         if (ev.type !== "pointerout") player.play(posTargeted / cSize(HTMLElement_seeker).width * player.duration);
+//     }
+// }
+// /** @param {PointerEvent} ev */
+// function onPlaybackMove(ev) {
+//     const posTargeted = ev.offsetX;
+//     player.playbackPosition = posTargeted / cSize(HTMLElement_seeker).width * player.duration;
+//     HTMLElement_slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
+// }
+//
+// /** @this DynamicButton */
+// function onPausePress() {
+//     this.setState(DynamicButtonStates.paused);
+//     this._button.innerHTML = SVGIcon_start;
+//     player.pause();
+// }
+// /** @this DynamicButton */
+// function onPlayPress() {
+//     this.setState(DynamicButtonStates.playing);
+//     this._button.innerHTML = SVGIcon_pause;
+//     player.play();
+// }
+// /** @this DynamicButton */
+// function onStopLoopPress() {
+//     this.setState(DynamicButtonStates.notLooping);
+//     this._button.innerHTML = SVGIcon_loop;
+//     player.looped = false;
+// }
+// /** @this DynamicButton */
+// function onStartLoopPress() {
+//     this.setState(DynamicButtonStates.looping);
+//     this._button.innerHTML = SVGIcon_unloop;
+//     player.looped = true;
+// }
+// /** @this DynamicButton */
+// function onUnmutePress() {
+//     this.setState(DynamicButtonStates.unmuted);
+//     this._button.innerHTML = SVGIcon_mute;
+//     player.muted = false;
+// }
+// /** @this DynamicButton */
+// function onMutePress() {
+//     this.setState(DynamicButtonStates.muted);
+//     this._button.innerHTML = SVGIcon_unmute;
+//     player.muted = true;
+// }
+//
+// function onButtonClick_Stop() {
+//     player.stop();
+//     DynamicButton_playPause.setState(DynamicButtonStates.paused);
+//     DynamicButton_playPause._states.get(DynamicButtonStates.playing)();
+// }
+//
+// player.endCallback(onButtonClick_Stop);
+//
+// DynamicButton_playPause.addState(DynamicButtonStates.playing, onPausePress);
+// DynamicButton_playPause.addState(DynamicButtonStates.paused, onPlayPress);
+// DynamicButton_playPause.setState(DynamicButtonStates.paused);
+// HTMLButton_playPause.innerHTML = SVGIcon_start;
+//
+// DynamicButton_loop.addState(DynamicButtonStates.looping, onStopLoopPress);
+// DynamicButton_loop.addState(DynamicButtonStates.notLooping, onStartLoopPress);
+// DynamicButton_loop.setState(DynamicButtonStates.notLooping);
+// HTMLButton_loop.innerHTML = SVGIcon_loop;
+//
+// DynamicButton_mute.addState(DynamicButtonStates.muted, onUnmutePress);
+// DynamicButton_mute.addState(DynamicButtonStates.unmuted, onMutePress);
+// DynamicButton_mute.setState(DynamicButtonStates.unmuted);
+// HTMLButton_mute.innerHTML = SVGIcon_mute;
+//
+// HTMLButton_stop.innerHTML = SVGIcon_stop;
+// HTMLButton_download.innerHTML = SVGIcon_download;
+//
+// HTMLButton_stop.onclick = onButtonClick_Stop;
+// HTMLButton_download.onclick = () => window.open(player._url);
+//
+// const HTMLElement_volumeScroll = document.getElementById("slider-container");
+// const HTMLElement_volumeThumb = document.getElementById("volume-thumb");
+//
+// let isThumbMoving = false;
+//
+// function enableVolumeMove(ev) {
+//     isThumbMoving = true;
+//     document.addEventListener("pointermove", onVolumeMove);
+//     document.addEventListener("pointerup", disableVolumeMove);
+//     onVolumeMove(ev);
+// }
+// function disableVolumeMove() {
+//     isThumbMoving = false;
+//     document.removeEventListener("pointermove", onVolumeMove);
+//     document.removeEventListener("pointerup", disableVolumeMove);
+// }
+// function onVolumeMove(ev) {
+//     if (!isThumbMoving) return;
+//
+//     const height = cSize(HTMLElement_volumeScroll).height;
+//     const posTop = HTMLElement_volumeScroll.getBoundingClientRect().top;
+//
+//     const bottomBorder = posTop + height;
+//     const posTargeted = clamp(posTop, ev.pageY, bottomBorder);
+//     const volume = (posTargeted - posTop) / height;
+//     const gain = 1 - volume;
+//     player.gain = gain;
+//     if (!gain) {
+//         DynamicButton_mute.setState(DynamicButtonStates.muted);
+//         DynamicButton_mute._states.get(DynamicButtonStates.unmuted)();
+//     } else {
+//         DynamicButton_mute.setState(DynamicButtonStates.unmuted);
+//         DynamicButton_mute._states.get(DynamicButtonStates.muted)();
+//     }
+//     HTMLElement_volumeThumb.style.top = `${volume * 100}%`;
+// }
+//
+// HTMLElement_volumeScroll.addEventListener("pointerdown", enableVolumeMove);
