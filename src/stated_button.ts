@@ -6,7 +6,7 @@ export type ButtonCallback = (ev: PointerEvent) => void;
  * Button wrapper with minimal states
  */
 export class StatedButton<States extends string> {
-    private buttonElement: HTMLButtonElement;
+    private readonly buttonElement: HTMLButtonElement;
     private states: Map<WithDefault<States>, ButtonCallback>;
     private _state: WithDefault<States> = "default";
 

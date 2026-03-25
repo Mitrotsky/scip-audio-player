@@ -108,9 +108,6 @@ class AudioPlayer {
         }
     }
 
-    /**
-     * @desc Ceases the playback and resets the counter
-     */
     public stop(): void {
         this.pause();
         this._playTime = 0;
@@ -351,12 +348,17 @@ class AudioPlayerSkeleton {
 
         for (const button of Object.values(this.HTMLElements.button)) button.disabled = true;
 
-        this.HTMLElements.volume.wrapper.insertAdjacentHTML("afterbegin", icons.volume);
-
         // Seeker setup
         this.seekerOnPointerDown = this.seekerOnPointerDown.bind(this);
         this.seekerOnPointerUp = this.seekerOnPointerUp.bind(this);
         this.seekerOnPointerMove = this.seekerOnPointerMove.bind(this);
+
+        // Volume setup
+        this.HTMLElements.volume.wrapper.insertAdjacentHTML("afterbegin", icons.volume);
+
+        this.volumeOnPointerDown = this.volumeOnPointerDown.bind(this);
+        this.volumeOnPointerUp = this.volumeOnPointerUp.bind(this);
+        this.volumeOnPointerMove = this.volumeOnPointerMove.bind(this);
     }
 
     public async init() {
@@ -366,7 +368,7 @@ class AudioPlayerSkeleton {
             for (const button of Object.values(this.HTMLElements.button)) button.disabled = false;
             this.HTMLElements.playback.duration.innerText = numberToTime(player.duration);
             this.enableSeeker();
-            // this.enableVolume();  // todo implement
+            this.enableVolume();
         } else {
             this.HTMLElements.special.player.classList.replace("not-loaded", "failed");
         }
@@ -426,11 +428,13 @@ class AudioPlayerSkeleton {
         this.wrappedButtons.mute.state = "mute";
         this.wrappedButtons.mute.button.innerHTML = icons.unmute;
         this.player.muted = true;
+        this.HTMLElements.volume.thumb.style.top = `100%`;
     }
     private onPauseMutePress(): void {
         this.wrappedButtons.mute.state = "unmute";
         this.wrappedButtons.mute.button.innerHTML = icons.mute;
         this.player.muted = false;
+        this.HTMLElements.volume.thumb.style.top = `${(1 - this.player.gain) * 100}%`;
     }
 
     private onStopPress(): void {
@@ -439,6 +443,37 @@ class AudioPlayerSkeleton {
     }
     private onDownloadPress(): void {
         window.open(player.url);
+    }
+
+    private enableVolume(): void {
+        this.HTMLElements.volume.scroll.addEventListener("pointerdown", this.volumeOnPointerDown);
+    }
+    private volumeOnPointerDown(event: PointerEvent): void {
+        // isThumbMoving = true;
+        document.addEventListener("pointermove", this.volumeOnPointerMove);
+        document.addEventListener("pointerup", this.volumeOnPointerUp);
+        this.volumeOnPointerMove(event);
+    }
+    private volumeOnPointerUp(): void {
+        document.removeEventListener("pointermove", this.volumeOnPointerMove);
+        document.removeEventListener("pointerup", this.volumeOnPointerUp);
+    }
+    private volumeOnPointerMove(event: PointerEvent): void {
+        // if (!isThumbMoving) return;
+
+        const height = cSize(this.HTMLElements.volume.scroll).height;
+        const posTop = this.HTMLElements.volume.scroll.getBoundingClientRect().top;
+        const bottomBorder = posTop + height;
+        const posTargeted = clamp(posTop, event.pageY, bottomBorder);
+        const volume = (posTargeted - posTop) / height;
+        const gain = 1 - volume;
+        player.gain = gain;
+        if (!gain) {
+            this.onStartMutePress();
+        } else {
+            if (this.wrappedButtons.mute.state !== "unmute") this.onPauseMutePress();
+        }
+        this.HTMLElements.volume.thumb.style.top = `${volume * 100}%`;
     }
 }
 
@@ -449,163 +484,3 @@ const player = new AudioPlayer("https://files.scpfoundation.net/local--files/dra
 
 const skeleton = new AudioPlayerSkeleton(player);
 await skeleton.init();
-
-// Anything past this line should be rewritten, not fixed
-
-
-
-
-
-// const DynamicButton_playPause = new DynamicButton(HTMLButton_playPause);
-// // const DynamicButton_loop = new DynamicButton(HTMLButton_loop);
-// // const DynamicButton_mute = new DynamicButton(HTMLButton_mute);
-//
-// // const HTMLElement_seeker = document.getElementById("seeker");
-// // const HTMLElement_slider = document.getElementById("seeker-slider");
-// // const HTMLElement_playbackPosition = document.getElementById("playback-position");
-// // const HTMLElement_playbackDuration = document.getElementById("playback-duration");
-//
-// const HTMLElement_volume = document.getElementById("volume");
-// HTMLElement_volume.insertAdjacentHTML("afterbegin", SVGIcon_volume);
-//
-// let playbackContainerIsDragged = false;
-//
-// HTMLElement_playbackDuration.innerText = numberToTime(player.duration);
-// player.updateCallback(updatePlayerStates);
-//
-// function updatePlayerStates() {
-//     const playbackPosition = numberToTime(player.playbackPosition % player.duration);
-//     if (HTMLElement_playbackPosition.innerText !== playbackPosition) HTMLElement_playbackPosition.innerText = playbackPosition;
-//     if (!playbackContainerIsDragged) HTMLElement_slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
-// }
-//
-// HTMLElement_seeker.addEventListener("pointerdown", enablePlaybackMove);
-// HTMLElement_seeker.addEventListener("pointerup", disablePlaybackMove);
-// HTMLElement_seeker.addEventListener("pointerout", disablePlaybackMove);
-//
-// /** @param {PointerEvent} ev */
-// function enablePlaybackMove(ev) {
-//     playbackContainerIsDragged = true;
-//     HTMLElement_seeker.addEventListener("pointermove", onPlaybackMove);
-// }
-// /** @param {PointerEvent} ev */
-// function disablePlaybackMove(ev) {
-//     playbackContainerIsDragged = false;
-//     HTMLElement_seeker.removeEventListener("pointermove", onPlaybackMove);
-//     if (ev.type !== "pointerout") onPlaybackMove(ev);
-//     if (player.isActive) {
-//         const posTargeted = ev.offsetX;
-//         if (ev.type !== "pointerout") player.play(posTargeted / cSize(HTMLElement_seeker).width * player.duration);
-//     }
-// }
-// /** @param {PointerEvent} ev */
-// function onPlaybackMove(ev) {
-//     const posTargeted = ev.offsetX;
-//     player.playbackPosition = posTargeted / cSize(HTMLElement_seeker).width * player.duration;
-//     HTMLElement_slider.style.width = `${player.playbackPosition / player.duration * 100}%`;
-// }
-//
-// /** @this DynamicButton */
-// function onPausePress() {
-//     this.setState(DynamicButtonStates.paused);
-//     this._button.innerHTML = SVGIcon_start;
-//     player.pause();
-// }
-// /** @this DynamicButton */
-// function onPlayPress() {
-//     this.setState(DynamicButtonStates.playing);
-//     this._button.innerHTML = SVGIcon_pause;
-//     player.play();
-// }
-// /** @this DynamicButton */
-// function onStopLoopPress() {
-//     this.setState(DynamicButtonStates.notLooping);
-//     this._button.innerHTML = SVGIcon_loop;
-//     player.looped = false;
-// }
-// /** @this DynamicButton */
-// function onStartLoopPress() {
-//     this.setState(DynamicButtonStates.looping);
-//     this._button.innerHTML = SVGIcon_unloop;
-//     player.looped = true;
-// }
-// /** @this DynamicButton */
-// function onUnmutePress() {
-//     this.setState(DynamicButtonStates.unmuted);
-//     this._button.innerHTML = SVGIcon_mute;
-//     player.muted = false;
-// }
-// /** @this DynamicButton */
-// function onMutePress() {
-//     this.setState(DynamicButtonStates.muted);
-//     this._button.innerHTML = SVGIcon_unmute;
-//     player.muted = true;
-// }
-//
-// function onButtonClick_Stop() {
-//     player.stop();
-//     DynamicButton_playPause.setState(DynamicButtonStates.paused);
-//     DynamicButton_playPause._states.get(DynamicButtonStates.playing)();
-// }
-//
-// player.endCallback(onButtonClick_Stop);
-//
-// DynamicButton_playPause.addState(DynamicButtonStates.playing, onPausePress);
-// DynamicButton_playPause.addState(DynamicButtonStates.paused, onPlayPress);
-// DynamicButton_playPause.setState(DynamicButtonStates.paused);
-// HTMLButton_playPause.innerHTML = SVGIcon_start;
-//
-// DynamicButton_loop.addState(DynamicButtonStates.looping, onStopLoopPress);
-// DynamicButton_loop.addState(DynamicButtonStates.notLooping, onStartLoopPress);
-// DynamicButton_loop.setState(DynamicButtonStates.notLooping);
-// HTMLButton_loop.innerHTML = SVGIcon_loop;
-//
-// DynamicButton_mute.addState(DynamicButtonStates.muted, onUnmutePress);
-// DynamicButton_mute.addState(DynamicButtonStates.unmuted, onMutePress);
-// DynamicButton_mute.setState(DynamicButtonStates.unmuted);
-// HTMLButton_mute.innerHTML = SVGIcon_mute;
-//
-// HTMLButton_stop.innerHTML = SVGIcon_stop;
-// HTMLButton_download.innerHTML = SVGIcon_download;
-//
-// HTMLButton_stop.onclick = onButtonClick_Stop;
-// HTMLButton_download.onclick = () => window.open(player._url);
-//
-// const HTMLElement_volumeScroll = document.getElementById("slider-container");
-// const HTMLElement_volumeThumb = document.getElementById("volume-thumb");
-//
-// let isThumbMoving = false;
-//
-// function enableVolumeMove(ev) {
-//     isThumbMoving = true;
-//     document.addEventListener("pointermove", onVolumeMove);
-//     document.addEventListener("pointerup", disableVolumeMove);
-//     onVolumeMove(ev);
-// }
-// function disableVolumeMove() {
-//     isThumbMoving = false;
-//     document.removeEventListener("pointermove", onVolumeMove);
-//     document.removeEventListener("pointerup", disableVolumeMove);
-// }
-// function onVolumeMove(ev) {
-//     if (!isThumbMoving) return;
-//
-//     const height = cSize(HTMLElement_volumeScroll).height;
-//     const posTop = HTMLElement_volumeScroll.getBoundingClientRect().top;
-//
-//     const bottomBorder = posTop + height;
-//     const posTargeted = clamp(posTop, ev.pageY, bottomBorder);
-//     const volume = (posTargeted - posTop) / height;
-//     const gain = 1 - volume;
-//     player.gain = gain;
-//     if (!gain) {
-//         DynamicButton_mute.setState(DynamicButtonStates.muted);
-//         DynamicButton_mute._states.get(DynamicButtonStates.unmuted)();
-//     } else {
-//         DynamicButton_mute.setState(DynamicButtonStates.unmuted);
-//         DynamicButton_mute._states.get(DynamicButtonStates.muted)();
-//     }
-//     HTMLElement_volumeThumb.style.top = `${volume * 100}%`;
-// }
-//
-// HTMLElement_volumeScroll.addEventListener("pointerdown", enableVolumeMove);
