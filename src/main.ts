@@ -479,10 +479,7 @@ class AudioPlayerSkeleton {
     }
 }
 
-// const player = new AudioPlayer("{$audio-file}");
-const player = new AudioPlayer("https://files.scpfoundation.net/local--files/draft:mitya-audio-player/1.10%20-%20Chlorine•FM%20(Intermission).mp3");
-
-// await player.load();
+const player = new AudioPlayer("{$audio-file}");
 
 const skeleton = new AudioPlayerSkeleton(player);
 await skeleton.init();
