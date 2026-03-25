@@ -256,9 +256,11 @@ async function loadCustomSVG(key: IconName): Promise<XMLString> {
         return fallbackIcon[key];
     }
     if (mimeType !== "image/svg+xml") {
-        // console.error("[Mit/ImageLoader] Currently only SVG images are supported. Replace your image with SVG file.");
-        // return fallbackIcon[key];
-        return `<img src="${response.url}" alt="${key}">`;
+        // Yes, this causes a memory leak. Too bad!
+        // https://www.youtube.com/watch?v=k238XpMMn38&t=80s
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        return `<img src="${objectUrl}" alt="${key}">`;
     }
     return response.text();
 }
