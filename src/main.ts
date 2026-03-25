@@ -308,6 +308,9 @@ class AudioPlayerSkeleton {
             scroll: document.getElementById("slider-container") as HTMLDivElement,
             thumb: document.getElementById("volume-thumb") as HTMLDivElement,
         },
+        special: {
+            player: document.getElementById("audio-player") as HTMLDivElement,
+        }
     };
 
     public wrappedButtons = {
@@ -344,6 +347,17 @@ class AudioPlayerSkeleton {
         this.seekerOnPointerDown = this.seekerOnPointerDown.bind(this);
         this.seekerOnPointerUp = this.seekerOnPointerUp.bind(this);
         this.seekerOnPointerMove = this.seekerOnPointerMove.bind(this);
+    }
+
+    public async init() {
+        const isLoaded = await this.player.load();
+        if (isLoaded) {
+            this.HTMLElements.special.player.classList.replace("not-loaded", "loaded");
+            this.enableSeeker();
+            // this.enableVolume();  // todo implement
+        } else {
+            this.HTMLElements.special.player.classList.replace("not-loaded", "failed");
+        }
     }
 
     private enableSeeker() {
@@ -413,7 +427,8 @@ const player = new AudioPlayer("https://files.scpfoundation.net/local--files/dra
 
 // await player.load();
 
-new AudioPlayerSkeleton(player);
+const skeleton = new AudioPlayerSkeleton(player);
+await skeleton.init();
 
 // Anything past this line should be rewritten, not fixed
 
