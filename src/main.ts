@@ -1,409 +1,9 @@
-import { StatedButton } from "./stated_button.ts";
+import { AudioPlayer } from "./player.ts";
+import { AudioPlayerSkeleton } from "./skeleton.ts";
+import type { IconName } from "./skeleton.ts"
 
-
-type CallbackFunction = (...args: any[]) => void;
-
-
-function numberToTime(time: number): string {
-    time = time ? Math.round(time) : 0;
-    return `${Math.floor(time / 60)}:${(time % 60).toString().padStart(2, "0")}`;
-}
-
-function clamp(smallest: number, target: number, biggest: number): number {
-    return Math.max(smallest, Math.min(biggest, target));
-}
-
-class AudioPlayer {
-    public readonly url: string;
-    private readonly _context: AudioContext;
-    private readonly _gainNode: GainNode;
-    private _gainValue: number;
-    private _source: AudioBufferSourceNode | null;
-    private _audioBuffer: AudioBuffer | null;
-    private _muted: boolean;
-    private _looped: boolean;
-    private _playTime: number;
-    private _playbackPosition: number;
-    private _isActive: boolean;
-    private _onUpdateCallback: CallbackFunction | null;
-    private _onEndCallback: CallbackFunction | null;
-
-    public constructor(url: string) {
-        this.url = url;
-        this._context = new AudioContext();
-        this._gainValue = 1;
-        this._gainNode = new GainNode(this._context, {
-            gain: this._gainValue
-        });
-        this._source = null;
-        this._audioBuffer = null;
-
-        this._gainNode.connect(this._context.destination);
-
-        this._muted = false;
-        this._looped = false;
-        this._playTime = 0;
-        this._playbackPosition = 0;
-
-        this._isActive = false;
-        this._onUpdateCallback = null;
-        this._onEndCallback = null;
-
-        this.animatePlayer = this.animatePlayer.bind(this);
-        this.animatePlayer();
-    }
-
-    public async load(): Promise<boolean> {
-        try {
-            const response = await fetch(this.url);
-            if (!response.ok) {
-                console.error(`[Mit/AudioPlayer] Could not load URL: unexpected server response with status ${response.status}`);
-                return false;
-            }
-            const mimeType = response.headers.get("Content-Type");
-            if (mimeType && !mimeType.startsWith("audio")) {
-                console.error(`[Mit/AudioPlayer] Incorrect file type. Expected "audio/...", got "${mimeType}" instead.`);
-                return false;
-            }
-            const arrayBuffer = await response.arrayBuffer();
-            this._audioBuffer = await this._context.decodeAudioData(arrayBuffer);
-            console.debug(`[Mit/AudioPlayer] Successfully decoded file of length ${numberToTime(this._audioBuffer.duration)} (${this._audioBuffer.duration}s.)`);
-        } catch (error) {
-            const errorStart = "[Mit/AudioPlayer] Couldn't decode provided audio:";
-            if (error instanceof Error || error instanceof DOMException) {
-                console.error(`${errorStart} ${error.message}`);
-            } else {
-                console.error(`${errorStart} Unexpected error encountered.`);
-            }
-            console.error(error);
-            return false;
-        }
-        return true;
-    }
-
-    public play(offset: number = this._playbackPosition): void {
-        if (!this._audioBuffer) {
-            console.error("[Mit/AudioPlayer] Audio is not loaded!");
-            return;
-        }
-        if (this._source) {
-            this._source.stop();
-        }
-        this._source = new AudioBufferSourceNode(this._context, {
-            buffer: this._audioBuffer,
-        });
-
-        this._playTime = this._context.currentTime - offset;
-        this._source.connect(this._gainNode);
-        this._source.start(0, offset);
-
-        this._isActive = true;
-    }
-
-    public pause(): void {
-        if (this._source) {
-            this._source.stop();
-            this._source = null;  // Я ненавижу то что AudioBufferSourceNode одноразовый...
-            this._isActive = false;
-        }
-    }
-
-    public stop(): void {
-        this.pause();
-        this._playTime = 0;
-        this._playbackPosition = 0;
-    }
-
-    private animatePlayer(): void {
-        if (this._source) {
-            this._playbackPosition = this._context.currentTime - this._playTime;
-            if (this._playbackPosition > this.duration) this._onNaturalTrackEnd(this._onEndCallback);
-        }
-        if (this._onUpdateCallback) this._onUpdateCallback();
-        requestAnimationFrame(this.animatePlayer);
-    }
-
-    private _onNaturalTrackEnd(callback: CallbackFunction | null): void {
-        console.debug("[Mit/AudioPlayer] Track has ended naturally. Loop value: ", this.looped);
-        this.stop();
-        if (callback && !this.looped) callback();
-        if (this.looped) this.play(0);
-    }
-
-    get muted(): boolean {
-        return this._muted;
-    }
-    set muted(value: boolean) {
-        this._muted = value;
-        if (this._muted) {
-            this._gainNode.gain.value = 0;
-        } else {
-            this._gainNode.gain.value = this._gainValue;
-        }
-    }
-
-    get gain(): number {
-        return this._gainValue;
-    }
-    set gain(value: number) {
-        this._gainValue = clamp(0, value, 1);
-        this._gainNode.gain.value = this._gainValue;
-    }
-
-    get looped(): boolean {
-        return this._looped;
-    }
-    set looped(value: boolean) {
-        this._looped = value;
-    }
-
-    get playbackPosition() {
-        return this._playbackPosition;
-    }
-    set playbackPosition(value: number) {
-        this._playbackPosition = value;
-    }
-
-    get duration(): number {
-        if (this._audioBuffer) {
-            return this._audioBuffer.duration;
-        } else {
-            return 0;
-        }
-    }
-    get isActive() {
-        return this._isActive;
-    }
-
-    set onUpdateCallback(callback: CallbackFunction) {
-        this._onUpdateCallback = callback;
-    }
-    set onPlaybackEndCallback(callback: CallbackFunction) {
-        this._onEndCallback = callback;
-    }
-}
-
-
-
-
-
-type XMLString = string;
-type StartIcons = "pause" | "start";
-type LoopIcons = "loop" | "unloop";
-type MuteIcons = "mute" | "unmute";
-type IconName = "stop" | StartIcons | "download" | LoopIcons | MuteIcons | "volume";
 
 const iconNames: IconName[] = ["stop", "pause", "start", "download", "loop", "unloop", "mute", "unmute", "volume"];
-
-interface Size {
-    width: number;
-    height: number;
-}
-
-function cSize(HTMLElement: HTMLElement): Size {
-    const rect = HTMLElement.getBoundingClientRect();
-    return {
-        width: rect.width,
-        height: rect.height
-    };
-}
-
-
-class AudioPlayerSkeleton {
-    private player: AudioPlayer;
-    private icons: Record<IconName, XMLString>;
-    private playbackContainerIsDragged: boolean = false;
-
-    public HTMLElements = {
-        button: {
-            stop: document.getElementById("stop") as HTMLButtonElement,
-            playPause: document.getElementById("play-pause") as HTMLButtonElement,
-            download: document.getElementById("download") as HTMLButtonElement,
-            loop: document.getElementById("loop") as HTMLButtonElement,
-            mute: document.getElementById("mute") as HTMLButtonElement,
-        },
-        playback: {
-            seeker: document.getElementById("seeker") as HTMLDivElement,
-            slider: document.getElementById("seeker-slider") as HTMLDivElement,
-            position: document.getElementById("playback-position") as HTMLSpanElement,
-            duration: document.getElementById("playback-duration") as HTMLSpanElement,
-        },
-        volume: {
-            wrapper: document.getElementById("volume") as HTMLDivElement,
-            scroll: document.getElementById("slider-container") as HTMLDivElement,
-            thumb: document.getElementById("volume-thumb") as HTMLDivElement,
-        },
-        special: {
-            player: document.getElementById("audio-player") as HTMLDivElement,
-        }
-    };
-
-    public wrappedButtons = {
-        playPause: new StatedButton<StartIcons>(this.HTMLElements.button.playPause),
-        loop: new StatedButton<LoopIcons>(this.HTMLElements.button.loop),
-        mute: new StatedButton<MuteIcons>(this.HTMLElements.button.mute),
-    }
-
-    public constructor(player: AudioPlayer, icons: Record<IconName, XMLString>) {
-        this.player = player;
-        this.icons = icons;
-
-        // Callbacks setup
-        this.onUpdate = this.onUpdate.bind(this);
-        this.onStopPress = this.onStopPress.bind(this);
-        this.player.onUpdateCallback = this.onUpdate;
-        this.player.onPlaybackEndCallback = this.onStopPress;
-
-        // Button setup
-        this.wrappedButtons.playPause.addState("pause", this.onStartPress.bind(this));
-        this.wrappedButtons.playPause.addState("start", this.onPausePress.bind(this));
-        this.onPausePress();
-
-        this.wrappedButtons.loop.addState("unloop", this.onStartLoopPress.bind(this));
-        this.wrappedButtons.loop.addState("loop", this.onPauseLoopPress.bind(this));
-        this.onPauseLoopPress();
-
-        this.wrappedButtons.mute.addState("unmute", this.onStartMutePress.bind(this));
-        this.wrappedButtons.mute.addState("mute", this.onPauseMutePress.bind(this));
-        this.onPauseMutePress();
-
-        this.HTMLElements.button.stop.innerHTML = icons.stop;
-        this.HTMLElements.button.stop.onclick = this.onStopPress.bind(this);
-
-        this.HTMLElements.button.download.innerHTML = icons.download;
-        this.HTMLElements.button.download.onclick = this.onDownloadPress.bind(this);
-
-        for (const button of Object.values(this.HTMLElements.button)) button.disabled = true;
-
-        // Seeker setup
-        this.seekerOnPointerDown = this.seekerOnPointerDown.bind(this);
-        this.seekerOnPointerUp = this.seekerOnPointerUp.bind(this);
-        this.seekerOnPointerMove = this.seekerOnPointerMove.bind(this);
-
-        // Volume setup
-        this.HTMLElements.volume.wrapper.insertAdjacentHTML("afterbegin", icons.volume);
-
-        this.volumeOnPointerDown = this.volumeOnPointerDown.bind(this);
-        this.volumeOnPointerUp = this.volumeOnPointerUp.bind(this);
-        this.volumeOnPointerMove = this.volumeOnPointerMove.bind(this);
-    }
-
-    public async init() {
-        const isLoaded = await this.player.load();
-        if (isLoaded) {
-            this.HTMLElements.special.player.classList.replace("not-loaded", "loaded");
-            for (const button of Object.values(this.HTMLElements.button)) button.disabled = false;
-            this.HTMLElements.playback.duration.innerText = numberToTime(this.player.duration);
-            this.enableSeeker();
-            this.enableVolume();
-        } else {
-            this.HTMLElements.special.player.classList.replace("not-loaded", "failed");
-        }
-    }
-
-    private onUpdate(): void {
-        const playbackPosition = numberToTime(this.player.playbackPosition % this.player.duration);
-        if (this.HTMLElements.playback.position.innerText !== playbackPosition) this.HTMLElements.playback.position.innerText = playbackPosition;
-        if (!this.playbackContainerIsDragged) this.HTMLElements.playback.slider.style.width = `${this.player.playbackPosition / this.player.duration * 100}%`;
-    }
-
-    private enableSeeker(): void {
-        this.HTMLElements.playback.seeker.addEventListener("pointerdown", this.seekerOnPointerDown);
-        this.HTMLElements.playback.seeker.addEventListener("pointerup", this.seekerOnPointerUp);
-        this.HTMLElements.playback.seeker.addEventListener("pointerout", this.seekerOnPointerUp);
-    }
-    private seekerOnPointerDown(): void {
-        this.playbackContainerIsDragged = true;
-        this.HTMLElements.playback.seeker.addEventListener("pointermove", this.seekerOnPointerMove);
-    }
-    private seekerOnPointerUp(event: PointerEvent): void {
-        this.playbackContainerIsDragged = false;
-        this.HTMLElements.playback.seeker.removeEventListener("pointermove", this.seekerOnPointerMove);
-        if (event.type !== "pointerout") this.seekerOnPointerMove(event);
-        if (this.player.isActive) {
-            if (event.type !== "pointerout") this.player.play(event.offsetX / cSize(this.HTMLElements.playback.seeker).width * this.player.duration);
-        }
-    }
-    private seekerOnPointerMove(event: PointerEvent): void {
-        this.player.playbackPosition = event.offsetX / cSize(this.HTMLElements.playback.seeker).width * this.player.duration;
-        this.HTMLElements.playback.slider.style.width = `${this.player.playbackPosition / this.player.duration * 100}%`;
-    }
-
-    private onStartPress(): void {
-        this.wrappedButtons.playPause.state = "start";
-        this.wrappedButtons.playPause.button.innerHTML = this.icons.pause;
-        this.player.play();
-    }
-    private onPausePress(): void {
-        this.wrappedButtons.playPause.state = "pause";
-        this.wrappedButtons.playPause.button.innerHTML = this.icons.start;
-        this.player.pause();
-    }
-
-    private onStartLoopPress(): void {
-        this.wrappedButtons.loop.state = "loop";
-        this.wrappedButtons.loop.button.innerHTML = this.icons.unloop;
-        this.player.looped = true;
-    }
-    private onPauseLoopPress(): void {
-        this.wrappedButtons.loop.state = "unloop";
-        this.wrappedButtons.loop.button.innerHTML = this.icons.loop;
-        this.player.looped = false;
-    }
-
-    private onStartMutePress(): void {
-        this.wrappedButtons.mute.state = "mute";
-        this.wrappedButtons.mute.button.innerHTML = this.icons.unmute;
-        this.player.muted = true;
-        this.HTMLElements.volume.thumb.style.top = `100%`;
-    }
-    private onPauseMutePress(): void {
-        this.wrappedButtons.mute.state = "unmute";
-        this.wrappedButtons.mute.button.innerHTML = this.icons.mute;
-        this.player.muted = false;
-        this.HTMLElements.volume.thumb.style.top = `${(1 - this.player.gain) * 100}%`;
-    }
-
-    private onStopPress(): void {
-        this.player.stop();
-        this.onPausePress();
-    }
-    private onDownloadPress(): void {
-        window.open(this.player.url);
-    }
-
-    private enableVolume(): void {
-        this.HTMLElements.volume.scroll.addEventListener("pointerdown", this.volumeOnPointerDown);
-    }
-    private volumeOnPointerDown(event: PointerEvent): void {
-        // isThumbMoving = true;
-        document.addEventListener("pointermove", this.volumeOnPointerMove);
-        document.addEventListener("pointerup", this.volumeOnPointerUp);
-        this.volumeOnPointerMove(event);
-    }
-    private volumeOnPointerUp(): void {
-        document.removeEventListener("pointermove", this.volumeOnPointerMove);
-        document.removeEventListener("pointerup", this.volumeOnPointerUp);
-    }
-    private volumeOnPointerMove(event: PointerEvent): void {
-        // if (!isThumbMoving) return;
-
-        const height = cSize(this.HTMLElements.volume.scroll).height;
-        const posTop = this.HTMLElements.volume.scroll.getBoundingClientRect().top;
-        const bottomBorder = posTop + height;
-        const posTargeted = clamp(posTop, event.pageY, bottomBorder);
-        const volume = (posTargeted - posTop) / height;
-        const gain = 1 - volume;
-        this.player.gain = gain;
-        if (!gain) {
-            this.onStartMutePress();
-        } else {
-            if (this.wrappedButtons.mute.state !== "unmute") this.onPauseMutePress();
-        }
-        this.HTMLElements.volume.thumb.style.top = `${volume * 100}%`;
-    }
-}
-
 
 /**
  * @desc Raw URL template used as a baseline to determine whether customIcon has been overridden by the user.
@@ -419,10 +19,11 @@ const customIconCode: Record<IconName, string> = {
     unmute: "{#unmute-icon}".replace("#", "$"),
     volume: "{#volume-icon}".replace("#", "$"),
 }
+
 /**
  * @desc Default icons, used as a fallback if no custom URL is provided.
  */
-const fallbackIcon: Record<IconName, XMLString> = {
+const fallbackIcon: Record<IconName, string> = {
     stop: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M16,4.995v9.808C16,15.464,15.464,16,14.804,16H4.997C4.446,16,4,15.554,4,15.003V5.196C4,4.536,4.536,4,5.196,4h9.808C15.554,4,16,4.446,16,4.995z"/></svg>`,
     pause: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,3h-2c-0.553,0-1,0.048-1,0.6v12.8c0,0.552,0.447,0.6,1,0.6h2c0.553,0,1-0.048,1-0.6V3.6C16,3.048,15.553,3,15,3z M7,3H5C4.447,3,4,3.048,4,3.6v12.8C4,16.952,4.447,17,5,17h2c0.553,0,1-0.048,1-0.6V3.6C8,3.048,7.553,3,7,3z"/></svg>`,
     start: `<svg width="4vw" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="currentColor" d="M15,10.001c0,0.299-0.305,0.514-0.305,0.514l-8.561,5.303C5.51,16.227,5,15.924,5,15.149V4.852c0-0.777,0.51-1.078,1.135-0.67l8.561,5.305C14.695,9.487,15,9.702,15,10.001z"/></svg>`,
@@ -435,8 +36,7 @@ const fallbackIcon: Record<IconName, XMLString> = {
 }
 
 
-
-async function loadCustomSVG(key: IconName, values: Record<IconName, XMLString>): Promise<XMLString> {
+async function loadCustomSVG(key: IconName, values: Record<IconName, string>): Promise<string> {
     if (values[key] === customIconCode[key]) {  // Is not changed by user
         console.debug(`[Mit/ImageLoader] Image of key "${key}" is not defined by user.`);
         return fallbackIcon[key];
@@ -462,12 +62,12 @@ async function loadCustomSVG(key: IconName, values: Record<IconName, XMLString>)
 }
 
 
-async function getIcons(values: Record<IconName, XMLString>): Promise<Record<IconName, XMLString>> {
+async function getIcons(values: Record<IconName, string>): Promise<Record<IconName, string>> {
     // Both .map and .allSettled preserve original order, therefore...
     const results = await Promise.allSettled(iconNames.map(key => loadCustomSVG(key, values)));
     return Object.fromEntries(
         iconNames.map((key, index) => [key, results[index].status === "fulfilled" ? results[index].value : fallbackIcon[key]])  // Should always resolve, but TS is mad as hell
-    ) as Record<IconName, XMLString>;
+    ) as Record<IconName, string>;
 }
 
 
@@ -479,6 +79,8 @@ export async function createAudioPlayer(values: Record<IconName | "audio", strin
     await skeleton.init();
 }
 
+// Example usage (await can be omitted)
+//
 // await createAudioPlayer({
 //     stop: "{$stop-icon}",
 //     pause: "{$pause-icon}",
@@ -489,5 +91,5 @@ export async function createAudioPlayer(values: Record<IconName | "audio", strin
 //     mute: "{$mute-icon}",
 //     unmute: "{$unmute-icon}",
 //     volume: "{$volume-icon}",
-//     audio: {$audio-file},
+//     audio: "{$audio-file}",
 // })
