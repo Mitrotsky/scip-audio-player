@@ -71,13 +71,25 @@ async function getIcons(values: Record<IconName, string>): Promise<Record<IconNa
 }
 
 
-export async function createAudioPlayer(values: Record<IconName | "audio", string>) {
+function setUserStyle(styleUrl: string): void {
+    if (styleUrl !== "{$user-defined-stylesheet}") {
+        const style = document.createElement("style");
+        style.textContent = `@import url(${styleUrl}) layer(user-defined);`;
+        document.head.appendChild(style);
+        return;
+    }
+    console.debug("[Mit/Style] Custom styles are not defined by user.")
+}
+
+
+export async function createAudioPlayer(values: Record<IconName | "audio" | "style", string>) {
     const player = new AudioPlayer(values.audio);
     const icons = await getIcons(values);
-
+    setUserStyle(values.style);
     const skeleton = new AudioPlayerSkeleton(player, icons);
     await skeleton.init();
 }
+
 
 // Example usage (await can be omitted)
 //
@@ -92,4 +104,5 @@ export async function createAudioPlayer(values: Record<IconName | "audio", strin
 //     unmute: "{$unmute-icon}",
 //     volume: "{$volume-icon}",
 //     audio: "{$audio-file}",
-// })
+//     style: "{$user-defined-stylesheet}"
+// });
