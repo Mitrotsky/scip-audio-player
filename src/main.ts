@@ -36,7 +36,7 @@ const fallbackIcon: Record<IconName, string> = {
 }
 
 
-async function loadCustomSVG(key: IconName, values: Record<IconName, string>): Promise<string> {
+async function loadCustomXML(key: IconName, values: Record<IconName, string>): Promise<string> {
     if (values[key] === customIconCode[key]) {  // Is not changed by user
         console.debug(`[Mit/ImageLoader] Image of key "${key}" is not defined by user.`);
         return fallbackIcon[key];
@@ -64,7 +64,7 @@ async function loadCustomSVG(key: IconName, values: Record<IconName, string>): P
 
 async function getIcons(values: Record<IconName, string>): Promise<Record<IconName, string>> {
     // Both .map and .allSettled preserve original order, therefore...
-    const results = await Promise.allSettled(iconNames.map(key => loadCustomSVG(key, values)));
+    const results = await Promise.allSettled(iconNames.map(key => loadCustomXML(key, values)));
     return Object.fromEntries(
         iconNames.map((key, index) => [key, results[index].status === "fulfilled" ? results[index].value : fallbackIcon[key]])  // Should always resolve, but TS is mad as hell
     ) as Record<IconName, string>;
