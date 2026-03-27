@@ -102,9 +102,12 @@ export class AudioPlayerSkeleton {
     }
 
     private onUpdate(): void {
-        const playbackPosition = numberToTime(this.player.playbackPosition % this.player.duration);
-        if (this.HTMLElements.playback.position.innerText !== playbackPosition) this.HTMLElements.playback.position.innerText = playbackPosition;
-        if (!this.playbackContainerIsDragged) this.HTMLElements.playback.slider.style.width = `${this.player.playbackPosition / this.player.duration * 100}%`;
+        const duration = this.player.duration;
+        const playback = this.player.playbackPosition;
+        const timePassed = playback !== duration ? playback % duration : duration;
+        const playbackTime = numberToTime(timePassed);
+        if (this.HTMLElements.playback.position.innerText !== playbackTime) this.HTMLElements.playback.position.innerText = playbackTime;
+        if (!this.playbackContainerIsDragged) this.HTMLElements.playback.slider.style.width = `${playback / duration * 100}%`;
     }
 
     private enableSeeker(): void {
@@ -125,8 +128,10 @@ export class AudioPlayerSkeleton {
         }
     }
     private seekerOnPointerMove(event: PointerEvent): void {
-        this.player.playbackPosition = event.offsetX / rect(this.HTMLElements.playback.seeker).width * this.player.duration;
-        this.HTMLElements.playback.slider.style.width = `${this.player.playbackPosition / this.player.duration * 100}%`;
+        const duration = this.player.duration;
+        const playback = clamp(0, event.offsetX / rect(this.HTMLElements.playback.seeker).width * duration, duration);
+        this.player.playbackPosition = playback;
+        this.HTMLElements.playback.slider.style.width = `${playback / duration * 100}%`;
     }
 
     private onStartPress(): void {
