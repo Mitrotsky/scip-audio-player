@@ -112,26 +112,26 @@ export class AudioPlayerSkeleton {
 
     private enableSeeker(): void {
         this.HTMLElements.playback.seeker.addEventListener("pointerdown", this.seekerOnPointerDown);
-        this.HTMLElements.playback.seeker.addEventListener("pointerup", this.seekerOnPointerUp);
-        this.HTMLElements.playback.seeker.addEventListener("pointerout", this.seekerOnPointerUp);
     }
     private seekerOnPointerDown(): void {
         this.playbackContainerIsDragged = true;
-        this.HTMLElements.playback.seeker.addEventListener("pointermove", this.seekerOnPointerMove);
+        document.addEventListener("pointermove", this.seekerOnPointerMove);
+        document.addEventListener("pointerup", this.seekerOnPointerUp);
     }
     private seekerOnPointerUp(event: PointerEvent): void {
+        document.removeEventListener("pointermove", this.seekerOnPointerMove);
+        document.removeEventListener("pointerup", this.seekerOnPointerUp);
         this.playbackContainerIsDragged = false;
-        this.HTMLElements.playback.seeker.removeEventListener("pointermove", this.seekerOnPointerMove);
-        if (event.type !== "pointerout") this.seekerOnPointerMove(event);
+        this.seekerOnPointerMove(event);
         if (this.player.isActive) {
-            if (event.type !== "pointerout") this.player.play(event.offsetX / rect(this.HTMLElements.playback.seeker).width * this.player.duration);
+            const playback = this.pointerPlaybackPosition(event);
+            this.player.play(playback);
         }
     }
     private seekerOnPointerMove(event: PointerEvent): void {
-        const duration = this.player.duration;
-        const playback = clamp(0, event.offsetX / rect(this.HTMLElements.playback.seeker).width * duration, duration);
+        const playback = this.pointerPlaybackPosition(event);
         this.player.playbackPosition = playback;
-        this.HTMLElements.playback.slider.style.width = `${playback / duration * 100}%`;
+        this.HTMLElements.playback.slider.style.width = `${playback / this.player.duration * 100}%`;
     }
 
     private onStartPress(): void {
@@ -206,5 +206,12 @@ export class AudioPlayerSkeleton {
             if (this.wrappedButtons.mute.state !== "unmute") this.onPauseMutePress();
         }
         this.HTMLElements.volume.thumb.style.top = `${volume * 100}%`;
+    }
+
+    private pointerPlaybackPosition(event: PointerEvent): number {
+        const duration = this.player.duration;
+        const seekerRect = rect(this.HTMLElements.playback.seeker);
+        const pointerPosition = (event.clientX - seekerRect.left) / seekerRect.width * duration;
+        return clamp(0, pointerPosition, duration);
     }
 }
