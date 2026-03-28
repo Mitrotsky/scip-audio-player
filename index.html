@@ -97,6 +97,7 @@
         #playback {
           display: flex;
           justify-content: space-between;
+          user-select: none;
         }
 
         #playback #playback-position {
@@ -157,6 +158,10 @@
 
         :is(button, #volume) > :is(img, svg) {
           width: 4vw;
+        }
+
+        #audio-player:is(.not-loaded, .failed) {
+          filter: brightness(0.65);
         }
       }
     </style>
